@@ -57,7 +57,8 @@ def calculate_psd_welch_channel(c):
 
 
 def prepare_data_for_classification(data, mean, std):
-    data_with_reference = set_reference(data)
+    data_scaled = data * 1e6
+    data_with_reference = set_reference(data_scaled)
     data_decimated = np.apply_along_axis(decimate, 1, data_with_reference, DECIMATION_FACTOR)
     data_psd = np.apply_along_axis(calculate_psd_welch_channel, 1, data_decimated)
     data_normalized = np.apply_along_axis(lambda c: (c - mean) / std, 0, data_psd)
