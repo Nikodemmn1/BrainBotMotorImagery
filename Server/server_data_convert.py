@@ -5,7 +5,7 @@ import torch
 
 from SharedParameters.signal_parameters import CAL, OFFSET, UNIT, LOW_PASS_FREQ_PB, \
     HIGH_PASS_FREQ_PB, WELCH_OVERLAP_PERCENT, WELCH_SEGMENT_LEN
-from server_params import *
+from Server.server_params import *
 from scipy.signal import welch, decimate
 
 
@@ -57,15 +57,17 @@ def calculate_psd_welch_channel(c):
 
 
 def prepare_data_for_classification(data, mean, std):
-    data_scaled = data * 1e6
-    data_with_reference = set_reference(data_scaled)
-    data_decimated = np.apply_along_axis(decimate, 1, data_with_reference, DECIMATION_FACTOR)
-    data_psd = np.apply_along_axis(calculate_psd_welch_channel, 1, data_decimated)
+    data = data[:CHANNELS-1, :]
+    data_with_reference = set_reference(data)
+    data_decimated = np.apply_along_axis(decimate, 1, data_with_reference, int(DECIMATION_FACTOR))
+    data_scaled = data_decimated * 1e6
+    data_psd = np.apply_along_axis(calculate_psd_welch_channel, 1, data_scaled)
+    data_psd[:, 0] = np.zeros((16))
     data_normalized = np.apply_along_axis(lambda c: (c - mean) / std, 0, data_psd)
 
     return data_normalized
 
 
 def get_classification(x, model):
-    with torch.no_grad:
+    with torch.no_grad():
         return model(x)

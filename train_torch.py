@@ -16,10 +16,9 @@ def main():
     trainer = Trainer(gpus=-1, callbacks=[TQDMProgressBar(refresh_rate=100), StochasticWeightAveraging(swa_lrs=1e-2)],
                       check_val_every_n_epoch=20, benchmark=True)
 
-    print(test_dataset.dataset.data[0, 7, 0:10])
-    print(test_dataset.indices)
-
     trainer.fit(model, train_data, val_data)
+
+    trainer.test(model, val_data)
 
 
 if __name__ == "__main__":

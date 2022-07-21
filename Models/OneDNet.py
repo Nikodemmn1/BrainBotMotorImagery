@@ -45,6 +45,7 @@ class OneDNet(LightningModule):
         self.indices = (train_indices, val_indices, test_indices)
 
     def forward(self, x):
+        x = torch.tensor(x)
         sc = self.signal_len
         cl = x.size(1)
         if x.size(2) != sc:

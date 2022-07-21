@@ -2,9 +2,9 @@ import socket
 import struct
 import random
 import pickle
-import server_data_convert as dc
+import Server.server_data_convert as dc
 import numpy as np
-from server_params import *
+from Server.server_params import *
 from Models.OneDNet import OneDNet
 from Dataset.dataset import EEGDataset
 
@@ -51,15 +51,15 @@ def main():
         decoded_data = dc.decode_data_from_bytes(raw_data)
         decoded_data[CHANNELS-1, :] = np.bitwise_and(decoded_data[CHANNELS-1, :].astype(int), 2 ** 17 - 1)
 
-        buffer = np.roll(buffer, -SERVER_OVERLAP, axis=1)
-        buffer[:, -SERVER_OVERLAP:] = decoded_data
+        buffer = np.roll(buffer, -SAMPLES, axis=1)
+        buffer[:, -SAMPLES:] = decoded_data
 
-        if buffer_filled + SERVER_OVERLAP < SERVER_BUFFER_LEN:
-            buffer_filled += SERVER_OVERLAP
+        if buffer_filled + SAMPLES < SERVER_BUFFER_LEN:
+            buffer_filled += SAMPLES
         else:
             x = dc.prepare_data_for_classification(buffer, mean_std["mean"], mean_std["std"])
-            y = dc.get_classification(x, model)
-            print(y)
+            y = dc.get_classification(np.reshape(x, (1, x.shape[0], x.shape[1])).astype(np.float32), model)
+            print(np.argmax(y.numpy()) + 1)
 
             # left = True if label == 1 else False
             # forward = True
