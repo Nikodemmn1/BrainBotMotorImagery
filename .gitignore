@@ -1,0 +1,25 @@
+#This files are not in the github repo:
+#Pycharm Files
+*.idea
+#Virtual Environment
+*venv
+*env
+
+#Cache:
+*__pycache__
+
+#Plot Data:
+*plots
+*logs
+
+#Pickle
+*.pkl
+*.npy
+*.npz
+
+#BrainStudy:
+#Put your data here:
+Data/*
+
+#Runs (Training Log):
+Models/checkpoints/*
