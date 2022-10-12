@@ -30,11 +30,10 @@ def decode_data_from_bytes(raw_data):
                       (raw_data_array[:, 1] << 8) +
                       (raw_data_array[:, 2] << 16))
     raw_data_array[raw_data_array >= (1 << 23)] -= (1 << 24)
-    normal_data = raw_data_array
 
     for j in range(CHANNELS):
         for i in range(SAMPLES):
-            data_struct[j, i] = normal_data[i * CHANNELS + j].astype('float32')
+            data_struct[j, i] = raw_data_array[i * CHANNELS + j].astype('float32')
             data_struct[j, i] *= CAL
             data_struct[j, i] += OFFSET
             data_struct[j, i] *= UNIT
@@ -62,7 +61,7 @@ def prepare_data_for_classification(data, mean, std):
     data_decimated = np.apply_along_axis(decimate, 1, data_with_reference, int(DECIMATION_FACTOR))
     data_scaled = data_decimated * 1e6
     data_psd = np.apply_along_axis(calculate_psd_welch_channel, 1, data_scaled)
-    data_psd[:, 0] = np.zeros((16))
+    data_psd[:, 0] = np.zeros(16)
     data_normalized = np.apply_along_axis(lambda c: (c - mean) / std, 0, data_psd)
 
     return data_normalized
