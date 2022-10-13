@@ -11,32 +11,35 @@ class OneDNet(LightningModule):
         super().__init__()
 
         self.features = nn.Sequential(
-            nn.Conv1d(16, 42, kernel_size=(3,), padding='same'),
+            nn.Conv1d(16, 42, kernel_size=(3,), padding='valid'),
             # nn.Dropout2d(p=0.2),
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
-            nn.Conv1d(42, 84, kernel_size=(3,), padding='same'),
+            nn.AvgPool1d(kernel_size=3),
+
+            nn.Conv1d(42, 84, kernel_size=(3,), padding='valid'),
             # nn.Dropout2d(p=0.2),
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
-            nn.Conv1d(84, 100, kernel_size=(3,), padding='same'),
+            nn.AvgPool1d(kernel_size=3),
+
+            nn.Conv1d(84, 100, kernel_size=(3,), padding='valid'),
             # nn.Dropout2d(p=0.2),
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
-            nn.MaxPool1d(kernel_size=2),  # downsize 2 times
         )
 
         self.avgpool = nn.AdaptiveAvgPool1d(10)
 
         self.classifier = nn.Sequential(
-            nn.Linear(100 * signal_len // 2, 500),
+            nn.Linear(1000, 100),
             # nn.Dropout(p=0.4),
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
-            nn.Linear(500, 50),
+            nn.Linear(100, 10),
             # nn.Dropout(p=0.3),
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
-            nn.Linear(50, classes_count),
+            nn.Linear(10, classes_count),
             nn.Softmax()
         )
 
@@ -45,12 +48,14 @@ class OneDNet(LightningModule):
         self.indices = (train_indices, val_indices, test_indices)
 
     def forward(self, x):
+        x = torch.tensor(x)
         sc = self.signal_len
         cl = x.size(1)
         if x.size(2) != sc:
             x = torch.stack([_.flatten()[:-abs((x.size(2) * x.size(1)) - (sc * x.size(1)))].reshape(cl, sc) for _ in
                              x.unbind()])  # create squares
         x = self.features(x)
+        #print(x.shape)
         x = torch.flatten(x, 1)
         x = self.classifier(x)
         if x.size(1) == 1:

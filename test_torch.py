@@ -10,7 +10,7 @@ from Dataset.dataset import *
 def main():
     full_dataset = EEGDataset("./Data/EEGLarge/EEGLarge.npy")
 
-    trainer = Trainer(gpus=-1, callbacks=[TQDMProgressBar(refresh_rate=100), StochasticWeightAveraging(swa_lrs=1e-2)],
+    trainer = Trainer(callbacks=[TQDMProgressBar(refresh_rate=100), StochasticWeightAveraging(swa_lrs=1e-2)],
                       check_val_every_n_epoch=20, benchmark=True)
 
     test_indices = torch.load("./checkpoint.ckpt")['indices'][2]

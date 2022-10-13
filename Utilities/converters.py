@@ -9,6 +9,12 @@ from scipy.signal import lfilter, butter, buttord, welch
 from scipy.fft import fft, fftfreq
 
 
+def load_mean_std(path):
+    with open(path, "rb") as mean_std_file:
+        mean_std = pickle.load(mean_std_file)
+    return mean_std
+
+
 class EEGDataConverter:
     DATASET_FREQ = None
     LOW_PASS_FREQ_PB = None
@@ -35,9 +41,9 @@ class EEGDataConverter:
         self.labels = []  # numerical from 0 to L-1, where L is labels count
         self.mean_std = None
 
-    def convert_and_save(self):
+    def convert_and_save(self, mean=None, std=None):
         self._convert()
-        self._process_post_convert()
+        self._process_post_convert(mean, std)
         self._save_data()
 
     # The unit must be 1μV, self.snippets should be non-overlapping recording fragments of size self.OVERLAP
@@ -105,6 +111,9 @@ class EEGDataConverter:
         all_data = np.hstack(self.converted_data)
         mean = np.apply_along_axis(np.mean, 1, all_data)
         std = np.apply_along_axis(np.std, 1, all_data)
+        self._normalize_no_calc(mean, std)
+
+    def _normalize_no_calc(self, mean, std):
         self.converted_data = [np.apply_along_axis(lambda c: (c - mean) / std, 0, c_data)
                                for c_data in self.converted_data]
         self.mean_std = {"mean": mean, "std": std}
@@ -126,9 +135,12 @@ class EEGDataConverter:
         new_shape = (old_shape[0], old_shape[1], old_shape[2] * old_shape[3])
         self.converted_data = np.reshape(self.converted_data, new_shape)
 
-    def _process_post_convert(self):
+    def _process_post_convert(self, mean=None, std=None):
         self._calculate_psd_welch()
-        self._normalize()
+        if mean is None or std is None:
+            self._normalize()
+        else:
+            self._normalize_no_calc(mean, std)
         self._order_by_label_and_balance()
 
     def _save_data(self):
