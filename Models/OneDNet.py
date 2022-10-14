@@ -115,3 +115,15 @@ class OneDNet(LightningModule):
 
     def on_save_checkpoint(self, checkpoint):
         checkpoint['indices'] = self.indices
+
+
+class RepeatPadder2d(torch.nn.Module):
+    def __init__(self, pad):
+        super().__init__()
+        pad0 = pad[0]
+        pad1 = pad[1]
+
+    def forward(self, x):
+        y = x.repeat(3, 3)[(x.size(0) - self.pad0):(2 * x.size(0) + self.pad0),
+                           (x.size(1) - self.pad1):(2 * x.size(1) + self.pad1)]
+        return y
