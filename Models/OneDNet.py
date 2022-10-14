@@ -4,6 +4,8 @@ from torch.nn.functional import nll_loss
 from torch import nn
 from pytorch_lightning import LightningModule
 import torchmetrics
+import seaborn as sn
+import pandas as pd
 
 
 class OneDNet(LightningModule):
@@ -21,43 +23,44 @@ class OneDNet(LightningModule):
             # nn.Dropout2d(p=0.2),
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
-            #nn.AvgPool1d(kernel_size=3),
+            nn.AvgPool1d(kernel_size=3),
 
-            # nn.Conv1d(84, 100, kernel_size=(3,), padding='valid'),
+            nn.Conv1d(84, 160, kernel_size=(3,), padding='valid'),
             # nn.Dropout2d(p=0.2),
-            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
+            nn.LeakyReLU(negative_slope=0.01, inplace=True),
+
+            nn.AvgPool1d(kernel_size=3),
+
+            nn.Conv1d(160, 230, kernel_size=(3,), padding='valid'),
+            # nn.Dropout2d(p=0.2),
+            nn.LeakyReLU(negative_slope=0.01, inplace=True),
         )
 
         self.avgpool = nn.AdaptiveAvgPool1d(10)
 
         self.classifier = nn.Sequential(
-            nn.Linear(2940, 100),
+            # nn.Linear(5980, 100),
             # nn.Dropout(p=0.4),
-            nn.LeakyReLU(negative_slope=0.01, inplace=True),
-
-            # nn.Linear(100, 10),
-            # nn.Dropout(p=0.3),
             # nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
-            nn.Linear(100, classes_count),
+            nn.Linear(5980, classes_count),
             nn.Softmax()
         )
 
         self.signal_len = signal_len
         self.accuracy = torchmetrics.Accuracy()
+        self.confusion_matrix = torchmetrics.ConfusionMatrix(classes_count)
         self.indices = (train_indices, val_indices, test_indices)
 
     def forward(self, x):
-        x = torch.tensor(x)
+        # x = torch.tensor(x)
         sc = self.signal_len
         cl = x.size(1)
         if x.size(2) != sc:
             x = torch.stack([_.flatten()[:-abs((x.size(2) * x.size(1)) - (sc * x.size(1)))].reshape(cl, sc) for _ in
                              x.unbind()])  # create squares
         x = self.features(x)
-        #print(x.shape)
         x = torch.flatten(x, 1)
-        #print(x.shape)
         x = self.classifier(x)
         if x.size(1) == 1:
             x = x.flatten()  # remove channel dim
@@ -77,6 +80,35 @@ class OneDNet(LightningModule):
         output = self(data)
         loss = nll_loss(output, label)
         self.log("Val loss", loss)
+        accuracy = self.accuracy(output, label)
+        self.log("Val accuracy", accuracy)
+        return output, label
+
+    def validation_epoch_end(self, validation_data):
+        outputs = torch.stack([torch.max(x[0], 1).indices for x in validation_data])
+        labels = torch.cat([x[1] for x in validation_data])
+
+        outputs = torch.flatten(outputs)
+        labels = torch.flatten(labels)
+
+        conf_matrix = self.confusion_matrix(outputs, labels)
+
+        df_cm = pd.DataFrame(conf_matrix.cpu(), index=["left h",
+                                                       "right h",
+                                                       "passive",
+                                                       "left l",
+                                                       "tongue",
+                                                       "right l"],
+                             columns=["left h pred",
+                                      "right h pred",
+                                      "passive pred",
+                                      "left l pred",
+                                      "tongue pred",
+                                      "right l pred"])
+
+        sn.set(font_scale=0.7)
+        conf_matrix_figure = sn.heatmap(df_cm, annot=False).get_figure()
+        self.logger.experiment.add_figure('Confusion matrix', conf_matrix_figure, self.current_epoch)
 
     def test_step(self, batch, batch_idx):
         data, label = batch

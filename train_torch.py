@@ -11,7 +11,7 @@ def main():
                               "./Data/EEGLarge/Test/Test.npy")
     train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
     train_data = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=12)
-    val_data = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=12)
+    val_data = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=0)
 
     model = OneDNet(full_dataset[0][0].shape[1], full_dataset.class_count, train_dataset.indices, val_dataset.indices,
                     test_dataset.indices)
