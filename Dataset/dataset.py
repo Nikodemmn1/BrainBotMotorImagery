@@ -4,10 +4,15 @@ from torch.utils.data import Dataset, Subset
 
 
 class EEGDataset(Dataset):
-    def __init__(self, train_file_path, val_file_path, test_file_path):
+    def __init__(self, train_file_path, val_file_path, test_file_path, included_classes=None):
         raw_data_train = np.load(train_file_path).astype(np.float32)
         raw_data_val = np.load(val_file_path).astype(np.float32)
         raw_data_test = np.load(test_file_path).astype(np.float32)
+
+        if included_classes is not None:
+            raw_data_train = raw_data_train[included_classes, :, :]
+            raw_data_val = raw_data_val[included_classes, :, :]
+            raw_data_test = raw_data_test[included_classes, :, :]
 
         self.class_count = raw_data_train.shape[0]
 

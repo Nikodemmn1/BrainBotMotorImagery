@@ -9,11 +9,12 @@ import pandas as pd
 
 
 class OneDNet(LightningModule):
-    def __init__(self, signal_len, classes_count, train_indices=None, val_indices=None, test_indices=None):
+    def __init__(self, signal_len, classes_count, included_classes,
+                 train_indices=None, val_indices=None, test_indices=None):
         super().__init__()
 
         self.features = nn.Sequential(
-            nn.Conv1d(16, 42, kernel_size=(5,), padding='valid'),
+            nn.Conv1d(16, 42, kernel_size=(3,), padding='valid'),
             # nn.Dropout2d(p=0.2),
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
@@ -23,9 +24,9 @@ class OneDNet(LightningModule):
             # nn.Dropout2d(p=0.2),
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
-            nn.AvgPool1d(kernel_size=3),
+            nn.AvgPool1d(kernel_size=5),
 
-            nn.Conv1d(84, 160, kernel_size=(3,), padding='valid'),
+            nn.Conv1d(84, 160, kernel_size=(5,), padding='valid'),
             # nn.Dropout2d(p=0.2),
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
@@ -43,7 +44,7 @@ class OneDNet(LightningModule):
             # nn.Dropout(p=0.4),
             # nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
-            nn.Linear(5980, classes_count),
+            nn.Linear(3220, classes_count),
             nn.Softmax()
         )
 
@@ -51,6 +52,13 @@ class OneDNet(LightningModule):
         self.accuracy = torchmetrics.Accuracy()
         self.confusion_matrix = torchmetrics.ConfusionMatrix(classes_count)
         self.indices = (train_indices, val_indices, test_indices)
+        self.class_names = ["left h",
+                            "right h",
+                            "passive",
+                            "left l",
+                            "tongue",
+                            "right l"]
+        self.class_names = [self.class_names[i] for i in included_classes]
 
     def forward(self, x):
         # x = torch.tensor(x)
@@ -85,26 +93,13 @@ class OneDNet(LightningModule):
         return output, label
 
     def validation_epoch_end(self, validation_data):
-        outputs = torch.stack([torch.max(x[0], 1).indices for x in validation_data])
+        outputs = torch.cat([torch.max(x[0], 1).indices for x in validation_data])
         labels = torch.cat([x[1] for x in validation_data])
-
-        outputs = torch.flatten(outputs)
-        labels = torch.flatten(labels)
 
         conf_matrix = self.confusion_matrix(outputs, labels)
 
-        df_cm = pd.DataFrame(conf_matrix.cpu(), index=["left h",
-                                                       "right h",
-                                                       "passive",
-                                                       "left l",
-                                                       "tongue",
-                                                       "right l"],
-                             columns=["left h pred",
-                                      "right h pred",
-                                      "passive pred",
-                                      "left l pred",
-                                      "tongue pred",
-                                      "right l pred"])
+        df_cm = pd.DataFrame(conf_matrix.cpu(), index=self.class_names,
+                             columns=[x + " pred" for x in self.class_names])
 
         sn.set(font_scale=0.7)
         conf_matrix_figure = sn.heatmap(df_cm, annot=False).get_figure()
