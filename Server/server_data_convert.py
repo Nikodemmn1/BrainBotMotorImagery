@@ -2,9 +2,11 @@ import pywt
 import math
 import numpy as np
 import torch
+from scipy.signal import lfilter, butter, buttord, welch
 
 from SharedParameters.signal_parameters import CAL, OFFSET, UNIT, LOW_PASS_FREQ_PB, \
-    HIGH_PASS_FREQ_PB, WELCH_OVERLAP_PERCENT, WELCH_SEGMENT_LEN
+    HIGH_PASS_FREQ_PB, WELCH_OVERLAP_PERCENT, WELCH_SEGMENT_LEN, LOW_PASS_FREQ_SB,  \
+    MAX_LOSS_PB, MIN_ATT_SB, HIGH_PASS_FREQ_SB
 from Server.server_params import *
 from scipy.signal import welch, decimate
 
@@ -41,6 +43,19 @@ def decode_data_from_bytes(raw_data):
     return np.flip(data_struct, 0)
 
 
+def _filter(data):
+    f_ord, wn = buttord(LOW_PASS_FREQ_PB, LOW_PASS_FREQ_SB, MAX_LOSS_PB, MIN_ATT_SB, False,
+                        DATASET_FREQ)
+    low_b, low_a, *rest = butter(f_ord, wn, 'lowpass', False, 'ba', DATASET_FREQ)
+
+    f_ord, wn = buttord(HIGH_PASS_FREQ_PB, HIGH_PASS_FREQ_SB, MAX_LOSS_PB, MIN_ATT_SB, False,
+                        DATASET_FREQ)
+    high_b, high_a, *rest = butter(f_ord, wn, 'highpass', False, 'ba', DATASET_FREQ)
+
+    converted_data = np.apply_along_axis(lambda c: lfilter(low_b, low_a, c), 1, data)
+    converted_data = np.apply_along_axis(lambda c: lfilter(high_b, high_a, c), 1, converted_data)
+
+
 def set_reference(data):
     # Reference is 0.55*(C3 + C4) - C3 is channel 6, C4 is channel 8.
     return np.apply_along_axis(lambda c: c - 0.55 * (c[6] + c[8]), 0, data)
@@ -60,9 +75,10 @@ def prepare_data_for_classification(data, mean, std):
     data_with_reference = set_reference(data)
     data_decimated = np.apply_along_axis(decimate, 1, data_with_reference, int(DECIMATION_FACTOR))
     data_scaled = data_decimated * 1e6
-    data_psd = np.apply_along_axis(calculate_psd_welch_channel, 1, data_scaled)
-    data_psd[:, 0] = np.zeros(16)
-    data_normalized = np.apply_along_axis(lambda c: (c - mean) / std, 0, data_psd)
+    data_filtered
+    # data_psd = np.apply_along_axis(calculate_psd_welch_channel, 1, data_scaled)
+    # data_psd[:, 0] = np.zeros(16)
+    data_normalized = np.apply_along_axis(lambda c: (c - mean) / std, 0, data_filtered)
 
     return data_normalized
 
