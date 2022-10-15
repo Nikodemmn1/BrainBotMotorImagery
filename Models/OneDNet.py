@@ -61,12 +61,6 @@ class OneDNet(LightningModule):
         self.class_names = [self.class_names[i] for i in included_classes]
 
     def forward(self, x):
-        # x = torch.tensor(x)
-        sc = self.signal_len
-        cl = x.size(1)
-        if x.size(2) != sc:
-            x = torch.stack([_.flatten()[:-abs((x.size(2) * x.size(1)) - (sc * x.size(1)))].reshape(cl, sc) for _ in
-                             x.unbind()])  # create squares
         x = self.features(x)
         x = torch.flatten(x, 1)
         x = self.classifier(x)
