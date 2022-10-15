@@ -102,7 +102,7 @@ class OneDNet(LightningModule):
                              columns=[x + " pred" for x in self.class_names])
 
         sn.set(font_scale=0.7)
-        conf_matrix_figure = sn.heatmap(df_cm, annot=False).get_figure()
+        conf_matrix_figure = sn.heatmap(df_cm, annot=True).get_figure()
         self.logger.experiment.add_figure('Confusion matrix', conf_matrix_figure, self.current_epoch)
 
     def test_step(self, batch, batch_idx):
