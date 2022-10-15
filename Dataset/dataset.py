@@ -31,6 +31,7 @@ class EEGDataset(Dataset):
         self.test_len = raw_data_test.shape[0]
 
         self.data = np.concatenate([raw_data_train, raw_data_val, raw_data_test], axis=0)
+        self.data = self.data.reshape((self.data.shape[0], 1, self.data.shape[1], self.data.shape[2]))
 
         self.labels = np.hstack([
             np.hstack([

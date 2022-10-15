@@ -14,25 +14,49 @@ class OneDNet(LightningModule):
         super().__init__()
 
         self.features = nn.Sequential(
-            nn.Conv1d(16, 42, kernel_size=(3,), padding='valid'),
+            nn.Conv2d(1, 16, kernel_size=(3, 3), padding='same', padding_mode='circular'),
             # nn.Dropout2d(p=0.2),
-            nn.LeakyReLU(negative_slope=0.01, inplace=True),
+            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
-            nn.AvgPool1d(kernel_size=3),
-
-            nn.Conv1d(42, 84, kernel_size=(5,), padding='valid'),
+            nn.Conv2d(16, 16, kernel_size=(1, 3), padding='valid'),
             # nn.Dropout2d(p=0.2),
-            nn.LeakyReLU(negative_slope=0.01, inplace=True),
+            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
-            nn.AvgPool1d(kernel_size=5),
+            nn.AvgPool2d(kernel_size=(1, 3)),
 
-            nn.Conv1d(84, 160, kernel_size=(5,), padding='valid'),
+            nn.Conv2d(16, 32, kernel_size=(1, 3), padding='valid'),
             # nn.Dropout2d(p=0.2),
-            nn.LeakyReLU(negative_slope=0.01, inplace=True),
+            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
-            nn.AvgPool1d(kernel_size=3),
+            nn.Conv2d(32, 32, kernel_size=(1, 3), padding='valid'),
+            # nn.Dropout2d(p=0.2),
+            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
-            nn.Conv1d(160, 230, kernel_size=(3,), padding='valid'),
+            nn.Conv2d(32, 32, kernel_size=(1, 3), padding='valid'),
+            # nn.Dropout2d(p=0.2),
+            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
+
+            nn.AvgPool2d(kernel_size=(1, 3)),
+
+            nn.Conv2d(32, 64, kernel_size=(1, 3), padding='valid'),
+            # nn.Dropout2d(p=0.2),
+            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
+
+            nn.Conv2d(64, 64, kernel_size=(1, 3), padding='valid'),
+            # nn.Dropout2d(p=0.2),
+            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
+
+            nn.Conv2d(64, 128, kernel_size=(1, 3), padding='valid'),
+            # nn.Dropout2d(p=0.2),
+            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
+
+            nn.Conv2d(128, 256, kernel_size=(3, 3), padding='valid'),
+            # nn.Dropout2d(p=0.2),
+            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
+
+            nn.AvgPool2d(kernel_size=(1, 3)),
+
+            # nn.Conv2d(160, 230, kernel_size=(3, 3), padding='same', padding_mode='circular'),
             # nn.Dropout2d(p=0.2),
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
         )
@@ -40,11 +64,11 @@ class OneDNet(LightningModule):
         self.avgpool = nn.AdaptiveAvgPool1d(10)
 
         self.classifier = nn.Sequential(
-            # nn.Linear(5980, 100),
+            nn.Linear(93184, classes_count),
             # nn.Dropout(p=0.4),
             # nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
-            nn.Linear(3220, classes_count),
+            #nn.Linear(100, classes_count),
             nn.Softmax()
         )
 
@@ -61,13 +85,8 @@ class OneDNet(LightningModule):
         self.class_names = [self.class_names[i] for i in included_classes]
 
     def forward(self, x):
-        # x = torch.tensor(x)
-        sc = self.signal_len
-        cl = x.size(1)
-        if x.size(2) != sc:
-            x = torch.stack([_.flatten()[:-abs((x.size(2) * x.size(1)) - (sc * x.size(1)))].reshape(cl, sc) for _ in
-                             x.unbind()])  # create squares
         x = self.features(x)
+        # print(x.size())
         x = torch.flatten(x, 1)
         x = self.classifier(x)
         if x.size(1) == 1:
@@ -75,7 +94,7 @@ class OneDNet(LightningModule):
         return x
 
     def configure_optimizers(self):
-        return AdamW(self.parameters(), lr=0.0001)
+        return AdamW(self.parameters(), lr=0.000001, weight_decay=1)
 
     def training_step(self, batch, batch_idx):
         data, label = batch
@@ -102,7 +121,7 @@ class OneDNet(LightningModule):
                              columns=[x + " pred" for x in self.class_names])
 
         sn.set(font_scale=0.7)
-        conf_matrix_figure = sn.heatmap(df_cm, annot=False).get_figure()
+        conf_matrix_figure = sn.heatmap(df_cm, annot=True).get_figure()
         self.logger.experiment.add_figure('Confusion matrix', conf_matrix_figure, self.current_epoch)
 
     def test_step(self, batch, batch_idx):
