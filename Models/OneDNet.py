@@ -9,16 +9,18 @@ import pandas as pd
 
 
 class OneDNet(LightningModule):
-    def __init__(self, signal_len, classes_count, included_classes,
+    def __init__(self, channel_count, included_classes,
                  train_indices=None, val_indices=None, test_indices=None):
         super().__init__()
 
+        classes_count = len(included_classes)
+
         self.features = nn.Sequential(
-            nn.Conv2d(1, 16, kernel_size=(3, 3), padding='same', padding_mode='circular'),
+            nn.Conv2d(1, channel_count, kernel_size=(3, 3), padding='same', padding_mode='circular'),
             # nn.Dropout2d(p=0.2),
             # nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
-            nn.Conv2d(16, 16, kernel_size=(1, 3), padding='valid'),
+            nn.Conv2d(channel_count, 16, kernel_size=(1, 3), padding='valid'),
             # nn.Dropout2d(p=0.2),
             # nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
@@ -61,8 +63,6 @@ class OneDNet(LightningModule):
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
         )
 
-        self.avgpool = nn.AdaptiveAvgPool1d(10)
-
         self.classifier = nn.Sequential(
             nn.Linear(93184, classes_count),
             # nn.Dropout(p=0.4),
@@ -72,7 +72,6 @@ class OneDNet(LightningModule):
             nn.Softmax()
         )
 
-        self.signal_len = signal_len
         self.accuracy = torchmetrics.Accuracy()
         self.confusion_matrix = torchmetrics.ConfusionMatrix(classes_count)
         self.indices = (train_indices, val_indices, test_indices)
@@ -94,7 +93,7 @@ class OneDNet(LightningModule):
         return x
 
     def configure_optimizers(self):
-        return AdamW(self.parameters(), lr=0.000001, weight_decay=1)
+        return AdamW(self.parameters(), lr=1e-5, weight_decay=1e-1)
 
     def training_step(self, batch, batch_idx):
         data, label = batch
