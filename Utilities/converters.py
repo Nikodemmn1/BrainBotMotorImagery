@@ -213,16 +213,16 @@ class LargeEEGDataConverter(EEGDataConverter):
 
     CLASSES_COUNT = 6
 
-    LOW_PASS_FREQ_PB = 40
-    LOW_PASS_FREQ_SB = 80
-    HIGH_PASS_FREQ_PB = 5
-    HIGH_PASS_FREQ_SB = 1
+    LOW_PASS_FREQ_PB = 30
+    LOW_PASS_FREQ_SB = 60
+    HIGH_PASS_FREQ_PB = 6
+    HIGH_PASS_FREQ_SB = 3
 
     WELCH_OVERLAP_PERCENT = 80
     WELCH_SEGMENT_LEN = 350
 
-    MAX_LOSS_PB = 6
-    MIN_ATT_SB = 30
+    MAX_LOSS_PB = 2
+    MIN_ATT_SB = 8
 
     def _convert_specific(self, i_file_path):
         mat = scipy.io.loadmat(i_file_path)

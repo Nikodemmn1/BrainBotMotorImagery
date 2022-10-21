@@ -16,59 +16,33 @@ class OneDNet(LightningModule):
         classes_count = len(included_classes)
 
         self.features = nn.Sequential(
-            nn.Conv2d(1, channel_count, kernel_size=(3, 3), padding='same', padding_mode='circular'),
+            nn.Conv2d(1, 32, kernel_size=(5, 5), padding='same', padding_mode='circular'),
             # nn.Dropout2d(p=0.2),
-            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
-
-            nn.Conv2d(channel_count, 16, kernel_size=(1, 3), padding='valid'),
-            # nn.Dropout2d(p=0.2),
-            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
+            nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
             nn.AvgPool2d(kernel_size=(1, 3)),
 
-            nn.Conv2d(16, 32, kernel_size=(1, 3), padding='valid'),
+            nn.Conv2d(32, 64, kernel_size=(3, 3), padding='valid'),
             # nn.Dropout2d(p=0.2),
-            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
-
-            nn.Conv2d(32, 32, kernel_size=(1, 3), padding='valid'),
-            # nn.Dropout2d(p=0.2),
-            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
-
-            nn.Conv2d(32, 32, kernel_size=(1, 3), padding='valid'),
-            # nn.Dropout2d(p=0.2),
-            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
+            nn.LeakyReLU(negative_slope=0.01, inplace=True),
 
             nn.AvgPool2d(kernel_size=(1, 3)),
 
-            nn.Conv2d(32, 64, kernel_size=(1, 3), padding='valid'),
-            # nn.Dropout2d(p=0.2),
-            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
-
-            nn.Conv2d(64, 64, kernel_size=(1, 3), padding='valid'),
-            # nn.Dropout2d(p=0.2),
-            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
-
-            nn.Conv2d(64, 128, kernel_size=(1, 3), padding='valid'),
-            # nn.Dropout2d(p=0.2),
-            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
-
-            nn.Conv2d(128, 256, kernel_size=(3, 3), padding='valid'),
-            # nn.Dropout2d(p=0.2),
-            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
-
-            nn.AvgPool2d(kernel_size=(1, 3)),
-
-            # nn.Conv2d(160, 230, kernel_size=(3, 3), padding='same', padding_mode='circular'),
+            nn.Conv2d(64, 128, kernel_size=(3, 3), padding='valid'),
             # nn.Dropout2d(p=0.2),
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
         )
 
         self.classifier = nn.Sequential(
-            nn.Linear(93184, classes_count),
-            # nn.Dropout(p=0.4),
-            # nn.LeakyReLU(negative_slope=0.01, inplace=True),
+            nn.Linear(132096, 250),
+            nn.Dropout(p=0.1),
+            nn.LeakyReLU(negative_slope=0.05, inplace=True),
 
-            #nn.Linear(100, classes_count),
+            nn.Linear(250, 120),
+            nn.Dropout(p=0.1),
+            nn.LeakyReLU(negative_slope=0.05, inplace=True),
+
+            nn.Linear(120, classes_count),
             nn.Softmax()
         )
 
@@ -93,7 +67,7 @@ class OneDNet(LightningModule):
         return x
 
     def configure_optimizers(self):
-        return AdamW(self.parameters(), lr=1e-5, weight_decay=1e-1)
+        return AdamW(self.parameters(), lr=1e-5, weight_decay=5e-2)
 
     def training_step(self, batch, batch_idx):
         data, label = batch
