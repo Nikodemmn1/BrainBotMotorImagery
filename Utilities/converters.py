@@ -12,13 +12,15 @@ from Utilities.running_stats import RunningStats
 from joblib import Parallel, delayed
 import multiprocessing
 
-
 # !!!ATTENTION!!!
 # If you don't have enough memory, change this to something smaller!
 # The less threads you use here, the less memory you need.
 # If you have a lot of memory, you can also increase it, making the normalization process faster.
 # !!!ATTENTION!!!
-THREADS_NORMALIZATION = 5
+THREADS_NORMALIZATION = 2
+TRAIN_PERCENT = 0.8
+VAL_PERCENT = 0.1
+TEST_PERCENT = 1 - TRAIN_PERCENT - VAL_PERCENT
 
 
 def load_mean_std(path):
@@ -62,13 +64,16 @@ class EEGDataConverter:
         input_paths = [join(input_folder, file_name) for file_name in listdir(input_folder)]
         self.input_file_paths = [input_file_path for input_file_path in input_paths if isfile(input_file_path)]
         self.output_file_base = join(output_folder, basename(normpath(output_folder)))
-        self.converted_data = []
-        self.labels = []  # numerical from 0 to L-1, where L is labels count
+        self.converted_data = [[], [], []]
+
+        # numerical from 0 to L-1, where L is labels for each dataset:
+        self.labels = [[], [], []]
+
         self.mean_std = None
 
-    def convert_and_save(self, mean=None, std=None):
+    def convert_and_save(self):
         self._convert()
-        self._process_post_convert(mean, std)
+        self._process_post_convert()
         self._save_data()
 
     # The unit must be 1μV, self.snippets should be non-overlapping recording fragments of size self.OVERLAP
@@ -81,19 +86,26 @@ class EEGDataConverter:
 
             self._convert_specific(i_file_path)
 
-            for label, labeled_snippets in enumerate(self.snippets):
-                buffer = np.zeros((len(self.CHANNELS_ORDER), self.BUFFER_LENGTH)).astype('float32')
-                buffer_filled = 0
+            snippets_len_min = min([len(snippet) for snippet in self.snippets])
+            train_len = int(np.floor(snippets_len_min * TRAIN_PERCENT))
+            val_len = int(np.floor(snippets_len_min * VAL_PERCENT))
+            self.snippets = np.array([lc[:snippets_len_min] for lc in self.snippets])
+            self.snippets = np.split(self.snippets, [train_len, train_len + val_len], axis=1)
 
-                for snippet in labeled_snippets:
-                    buffer = np.roll(buffer, -self.OVERLAP, 1)
-                    buffer[:, -self.OVERLAP:] = snippet
+            for dset in range(3):
+                for label, labeled_snippets in enumerate(self.snippets[dset]):
+                    buffer = np.zeros((len(self.CHANNELS_ORDER), self.BUFFER_LENGTH)).astype('float32')
+                    buffer_filled = 0
 
-                    if buffer_filled + self.OVERLAP < self.BUFFER_LENGTH:
-                        buffer_filled += self.OVERLAP
-                    else:
-                        self.converted_data.append(buffer)
-                        self.labels.append(label)
+                    for snippet in labeled_snippets:
+                        buffer = np.roll(buffer, -self.OVERLAP, 1)
+                        buffer[:, -self.OVERLAP:] = snippet
+
+                        if buffer_filled + self.OVERLAP < self.BUFFER_LENGTH:
+                            buffer_filled += self.OVERLAP
+                        else:
+                            self.converted_data[dset].append(buffer)
+                            self.labels[dset].append(label)
 
     def _filter(self):
         f_ord, wn = buttord(self.LOW_PASS_FREQ_PB, self.LOW_PASS_FREQ_SB, self.MAX_LOSS_PB, self.MIN_ATT_SB, False,
@@ -104,10 +116,13 @@ class EEGDataConverter:
                             self.DATASET_FREQ)
         high_b, high_a, *rest = butter(f_ord, wn, 'highpass', False, 'ba', self.DATASET_FREQ)
 
-        for sample_no in range(len(self.converted_data)):
-            for cl in range(self.converted_data[0].shape[0]):
-                self.converted_data[sample_no][cl] = lfilter(low_b, low_a, self.converted_data[sample_no][cl])
-                self.converted_data[sample_no][cl] = lfilter(high_b, high_a, self.converted_data[sample_no][cl])
+        for dset in range(3):
+            for sample_no in range(len(self.converted_data[dset])):
+                for cl in range(self.converted_data[dset][0].shape[0]):
+                    self.converted_data[dset][sample_no][cl] = lfilter(low_b, low_a,
+                                                                       self.converted_data[dset][sample_no][cl])
+                    self.converted_data[dset][sample_no][cl] = lfilter(high_b, high_a,
+                                                                       self.converted_data[dset][sample_no][cl])
 
     # It also performs filtering!
     def _calculate_psd_fft(self):
@@ -137,15 +152,17 @@ class EEGDataConverter:
     def _normalize(self):
         print("Converting to numpy array...")
 
-        self.converted_data = np.dstack(self.converted_data).astype('float32').transpose((2, 0, 1))
-        gc.collect()
+        for dset in range(3):
+            self.converted_data[dset] = np.dstack(self.converted_data[dset]).astype('float32').transpose((2, 0, 1))
+            gc.collect()
 
         print("Convertion complete, proceeding with normalization...")
 
-        channel_count = self.converted_data.shape[1]
+        channel_count = self.converted_data[0].shape[1]
 
         results = Parallel(n_jobs=THREADS_NORMALIZATION)(delayed(_normalize_job)(cl,
-                                                         self.converted_data[:, cl, :].flatten().astype('float32'))
+                                                                                 self.converted_data[0][:, cl,
+                                                                                 :].flatten().astype('float32'))
                                                          for cl in range(channel_count))
 
         results = sorted(results, key=lambda x: x[0])
@@ -160,22 +177,26 @@ class EEGDataConverter:
         print(mean)
         print(std)
 
-        self._normalize_no_calc(mean, std)
+        self._normalize_post_calc(mean, std)
 
-    def _normalize_no_calc(self, mean, std):
-        self.converted_data = np.apply_along_axis(lambda c: (c - mean) / std, 1, self.converted_data)
+    def _normalize_post_calc(self, mean, std):
+        for dset in range(3):
+            self.converted_data[dset] = np.apply_along_axis(lambda c: (c - mean) / std, 1, self.converted_data[dset])
         self.mean_std = {"mean": mean, "std": std}
 
     def _order_by_label_and_balance(self):
-        labels_unique_values = sorted(list(set(self.labels)))
+        labels_unique_values = sorted(list(set(self.labels[0])))
 
-        self.labels = np.array(self.labels)
-        by_label_list = [self.converted_data[np.where(self.labels == label)] for label in labels_unique_values]
-        min_len = min([len(by_label) for by_label in by_label_list])
-        by_label_balance_indices = [np.random.choice(np.arange(len(by_label)), min_len, replace=False)
-                                    for by_label in by_label_list]
-        self.converted_data = [by_label[by_label_balance_indices[i], :, :] for i, by_label in
-                               enumerate(by_label_list)]
+        self.labels = [np.array(labels) for labels in self.labels]
+
+        for dset in range(3):
+            by_label_list = [self.converted_data[dset][np.where(self.labels[dset] == label)] for label in
+                             labels_unique_values]
+            min_len = min([len(by_label) for by_label in by_label_list])
+            by_label_balance_indices = [np.random.choice(np.arange(len(by_label)), min_len, replace=False)
+                                        for by_label in by_label_list]
+            self.converted_data[dset] = [by_label[by_label_balance_indices[i], :, :] for i, by_label in
+                                         enumerate(by_label_list)]
 
     def _flatten_data(self):
         self.converted_data = np.array(self.converted_data)
@@ -183,20 +204,21 @@ class EEGDataConverter:
         new_shape = (old_shape[0], old_shape[1], old_shape[2] * old_shape[3])
         self.converted_data = np.reshape(self.converted_data, new_shape)
 
-    def _process_post_convert(self, mean=None, std=None):
+    def _process_post_convert(self):
         print("Filtering...")
         self._filter()
         # self._calculate_psd_welch()
         print("Normalizing...")
-        if mean is None or std is None:
-            self._normalize()
-        else:
-            self._normalize_no_calc(mean, std)
+        self._normalize()
         print("Ordering by label and balancing...")
         self._order_by_label_and_balance()
 
     def _save_data(self):
-        np.save(f"{self.output_file_base}.npy", np.array(self.converted_data, dtype=np.float32),
+        np.save(f"{self.output_file_base}_train.npy", np.array(self.converted_data[0], dtype=np.float32),
+                allow_pickle=False, fix_imports=False)
+        np.save(f"{self.output_file_base}_val.npy", np.array(self.converted_data[1], dtype=np.float32),
+                allow_pickle=False, fix_imports=False)
+        np.save(f"{self.output_file_base}_test.npy", np.array(self.converted_data[2], dtype=np.float32),
                 allow_pickle=False, fix_imports=False)
         with open(f"{self.output_file_base}_mean_std.txt", 'w') as mean_std_txt_file:
             mean_std_txt_file.write(f"MEAN: {self.mean_std['mean']}\nSTD: {self.mean_std['std']}")

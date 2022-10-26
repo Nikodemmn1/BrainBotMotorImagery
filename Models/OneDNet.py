@@ -116,8 +116,8 @@ class OneDNet(LightningModule):
         output = self(data)
         loss = nll_loss(output, label)
         self.log("Test loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.accuracy(output, label)
-        self.log("Test Acc", self.accuracy, on_step=False, on_epoch=True, prog_bar=True)
+        accuracy = self.accuracy(output, label)
+        self.log("Test Acc", accuracy, on_step=False, on_epoch=True, prog_bar=True)
         return output, label
 
     def test_epoch_end(self, test_data):
