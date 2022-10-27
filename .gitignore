@@ -23,3 +23,6 @@ Data/*
 
 #Runs (Training Log):
 Models/checkpoints/*
+
+#Test files
+filter_test.py
