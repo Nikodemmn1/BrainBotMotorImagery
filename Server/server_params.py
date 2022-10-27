@@ -1,7 +1,7 @@
 from SharedParameters.signal_parameters import BIOSEMI_CHANNELS_COUNT, BIOSEMI_FREQ, DATASET_FREQ, BUFFER_LENGTH, \
     OVERLAP
 
-CHANNELS = BIOSEMI_CHANNELS_COUNT + 1  # field "Channels sent by TCP" in Actiview
+CHANNELS = BIOSEMI_CHANNELS_COUNT  # field "Channels sent by TCP" in Actiview
 SAMPLES = 128  # field "TCP samples/channel" in Actiview
 WORDS = CHANNELS * SAMPLES
 
@@ -14,7 +14,7 @@ SAMPLES_DECIMATED = SAMPLES // DECIMATION_FACTOR
 
 TCP_LOCAL_PORT = 7279
 
-TCP_AV_PORT = 8888 # port configured in Activeview
+TCP_AV_PORT = 8888  # port configured in Activeview
 TCP_AV_ADDRESS = 'localhost'  # IP adress of Actiview host
 
 UDP_PORT = 5502

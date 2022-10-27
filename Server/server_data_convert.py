@@ -55,10 +55,12 @@ def _filter(data):
     converted_data = np.apply_along_axis(lambda c: lfilter(low_b, low_a, c), 1, data)
     converted_data = np.apply_along_axis(lambda c: lfilter(high_b, high_a, c), 1, converted_data)
 
+    return converted_data
+
 
 def set_reference(data):
     # Reference is 0.55*(C3 + C4) - C3 is channel 6, C4 is channel 8.
-    return np.apply_along_axis(lambda c: c - 0.55 * (c[6] + c[8]), 0, data)
+    return data - (0.55 * (data[6, :] + data[8, :]))
 
 
 def calculate_psd_welch_channel(c):
@@ -71,16 +73,17 @@ def calculate_psd_welch_channel(c):
 
 
 def prepare_data_for_classification(data, mean, std):
-    data = data[:CHANNELS-1, :]
+    # data = data[:CHANNELS-1, :]
     data_with_reference = set_reference(data)
     data_decimated = np.apply_along_axis(decimate, 1, data_with_reference, int(DECIMATION_FACTOR))
     data_scaled = data_decimated * 1e6
-    data_filtered
+    data_filtered = _filter(data_scaled)
     # data_psd = np.apply_along_axis(calculate_psd_welch_channel, 1, data_scaled)
     # data_psd[:, 0] = np.zeros(16)
     data_normalized = np.apply_along_axis(lambda c: (c - mean) / std, 0, data_filtered)
+    data_reshaped = np.reshape(data_normalized, (1, 1, data_normalized.shape[0], data_normalized.shape[1]))
 
-    return data_normalized
+    return torch.from_numpy(data_reshaped).type(torch.float32)
 
 
 def get_classification(x, model):
