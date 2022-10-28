@@ -11,10 +11,13 @@ from sklearn.svm import SVC
 import random
 import seaborn as sns
 import os.path as path
+
+from SharedParameters.signal_parameters import DATASET_FREQ
+
 def main():
     included_classes = [0, 1]
-    freqs = []
-    m = 6
+    freqs = [11, 22]
+    m = 10
     included_channels = None #assign None to take all 16 channels
     full_dataset = EEGDataset("./Data/EEGLarge/Train/Train.npy",
                               "./Data/EEGLarge/Val/Val.npy",
@@ -25,17 +28,17 @@ def main():
                               augmentations_num=1)
     train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
     if not path.exists("processed_data_train.npy"):    
-        jr = JointRegression(m, len(included_channels) if included_channels != None else 16, freqs)
+        jr = JointRegression(m, len(included_channels) if included_channels != None else 16, freqs, DATASET_FREQ)
         train_indices = train_dataset.indices
         train_data = jr(full_dataset.data[train_indices])
         np.save("processed_data_train.npy", np.append(train_data, full_dataset.labels[train_indices].reshape((-1, 1)), axis = 1), allow_pickle=True)
     if not path.exists("processed_data_val.npy"):    
-        jr = JointRegression(m, len(included_channels) if included_channels != None else 16, freqs)
+        jr = JointRegression(m, len(included_channels) if included_channels != None else 16, freqs, DATASET_FREQ)
         val_indices = val_dataset.indices
         val_data = jr(full_dataset.data[val_indices])
         np.save("processed_data_val.npy", np.append(val_data, full_dataset.labels[val_indices].reshape((-1, 1)), axis = 1), allow_pickle=True)
     if not path.exists("processed_data_test.npy"):
-        jr = JointRegression(m, len(included_channels) if included_channels != None else 16, freqs)
+        jr = JointRegression(m, len(included_channels) if included_channels != None else 16, freqs, DATASET_FREQ)
         test_indices = test_dataset.indices
         test_data = jr(full_dataset.data[test_indices])
         np.save("processed_data_test.npy", np.append(test_data, full_dataset.labels[test_indices].reshape((-1, 1)), axis = 1), allow_pickle=True)
