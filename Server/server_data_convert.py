@@ -27,7 +27,7 @@ def decode_data_from_bytes(raw_data):
     raw_data_array = np.array(raw_data)
     raw_data_array = raw_data_array.reshape((WORDS, 3))
     raw_data_array = raw_data_array.astype("int32")
-    raw_data_array = np.flip(raw_data_array, 0)
+    #raw_data_array = np.flip(raw_data_array, 0)
     raw_data_array = ((raw_data_array[:, 0]) +
                       (raw_data_array[:, 1] << 8) +
                       (raw_data_array[:, 2] << 16))
@@ -40,7 +40,8 @@ def decode_data_from_bytes(raw_data):
             data_struct[j, i] += OFFSET
             data_struct[j, i] *= UNIT
 
-    return np.flip(data_struct, 0)
+    return data_struct
+    #return np.flip(data_struct, 0)
 
 
 def _filter(data):
