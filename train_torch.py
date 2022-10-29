@@ -48,8 +48,8 @@ def main():
                                   "./processed_data_test.npy")
     train_dataset, val_dataset, test_dataset = processed_dataset.get_subsets()
     train_data = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=12)
-    val_data = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=0)
-    test_data = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=0)
+    val_data = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=12)
+    test_data = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=12)
     model = MLP(train_dataset.dataset.data.shape[1], len(included_classes), train_indices=train_dataset.indices, val_indices = val_dataset.indices, test_indices = test_dataset.indices)
     trainer = Trainer(accelerator='gpu', devices=-1, callbacks=[TQDMProgressBar(refresh_rate=100), StochasticWeightAveraging(swa_lrs=1e-2)],
                       check_val_every_n_epoch=5, benchmark=True, max_epochs=50)

@@ -12,19 +12,22 @@ class MLP(LightningModule):
 
         self.classifier = nn.Sequential(
             nn.Linear(n_features, 32),
-            nn.Dropout(p=0.2),
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
-            
+            nn.BatchNorm1d(32),
+            nn.Dropout(p=0.2),
+
             nn.Linear(32, 16),
-            nn.Dropout(p=0.2),
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
+            nn.BatchNorm1d(16),
+            nn.Dropout(p=0.2),
 
             nn.Linear(16, 10),
-            nn.Dropout(p=0.2),
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
-
+            nn.Dropout(p=0.2),
+            nn.BatchNorm1d(10),
+            
             nn.Linear(10, classes_count),
-            nn.Softmax()
+            nn.LogSoftmax(dim=1)
         )
         self.accuracy = torchmetrics.Accuracy()
         self.indices = (train_indices, val_indices, test_indices)
@@ -74,9 +77,10 @@ class MLP(LightningModule):
         data, label = batch
         output = self(data)
         loss = nll_loss(output, label)
-        self.log("Test loss", loss)
-        self.accuracy(output, label)
-        self.log("Test Acc", self.accuracy)
+        self.log("Test loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        accuracy = self.accuracy(output, label)
+        self.log("Test Acc", accuracy, on_step=False, on_epoch=True, prog_bar=True)
+        return output, label
 
     def on_save_checkpoint(self, checkpoint):
         checkpoint['indices'] = self.indices
