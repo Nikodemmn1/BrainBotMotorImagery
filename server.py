@@ -46,8 +46,10 @@ def main():
     buffer = np.zeros((CHANNELS, SERVER_BUFFER_LEN))
     buffer_filled = 0
 
-    mean_std = load_mean_std()
     model = load_model()
+
+    sec_res = np.zeros(3)
+    sec_samp = 0
 
     while True:
         # Decoding the received packet from ActiView
@@ -61,10 +63,18 @@ def main():
 
         if buffer_filled + SAMPLES < SERVER_BUFFER_LEN:
             buffer_filled += SAMPLES
+            sec_samp += 1
         else:
-            x = dc.prepare_data_for_classification(buffer, mean_std["mean"], mean_std["std"])
+            x = dc.prepare_data_for_classification(buffer)
             y = dc.get_classification(x, model)
-            print(np.argmax(y.numpy()) + 1)
+            out_ind = np.argmax(y.numpy())
+            sec_res[out_ind] += 1
+
+            sec_samp += 1
+            if sec_samp >= 16:
+                print(f"Max: {np.argmax(sec_res)+1}: [{sec_res[0]}, {sec_res[1]}, {sec_res[2]}]")
+                sec_res = np.zeros(3)
+                sec_samp = 0
 
             # left = True if label == 1 else False
             # forward = True

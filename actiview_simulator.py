@@ -23,27 +23,27 @@ if not LOAD:
         data = f.read()
     data = np.frombuffer(data[HEADER_LENGTH:], dtype='<u1')
 
-    samples = np.ndarray((CHANNELS_IN_FILE-1, SAMPLING_RATE*channel_sections_count, 3), dtype='<u1')
+    samples = np.ndarray((CHANNELS_IN_FILE - 1, SAMPLING_RATE * channel_sections_count, 3), dtype='<u1')
 
     for sec in range(channel_sections_count):
-        for ch in range(CHANNELS_IN_FILE-1):
+        for ch in range(CHANNELS_IN_FILE - 1):
             for sam in range(SAMPLING_RATE):
-                beg = sec*CHANNELS_IN_FILE*SAMPLING_RATE*3 + ch*SAMPLING_RATE*3 + sam*3
-                samples[ch, sec*SAMPLING_RATE+sam, :] = data[beg:beg+3]
+                beg = sec * CHANNELS_IN_FILE * SAMPLING_RATE * 3 + ch * SAMPLING_RATE * 3 + sam * 3
+                samples[ch, sec * SAMPLING_RATE + sam, :] = data[beg:beg + 3]
 
     np.save("testdata", samples)
 else:
     samples = np.load("testdata.npy")
 
-#samples2 = samples[:, :, 0].astype("int32") + samples[:, :, 1].astype("int32")*256 + samples[:, :, 2].astype("int32")*256*256
+#samples2 = samples[:, :, 0].astype("int32") + samples[:, :, 1].astype("int32") * 256 + samples[:, :, 2].astype(
+#    "int32") * 256 * 256
 #samples2[samples2 > pow(2, 23)] -= pow(2, 24)
-#samples2 = samples2.astype("float64") * 0.03125
 
 samples = np.transpose(samples, (1, 0, 2)).flatten()
-packets_data = np.transpose(np.reshape(samples, (WORDS*3, -1)), (1, 0))
+packets_data = np.reshape(samples, (-1, WORDS * 3))
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.bind((TCP_AV_ADDRESS, TCP_AV_PORT))
+sock.bind((TCP_AV_ADDRESS, TCP_AV_PORT + 1))
 sock.listen()
 conn, addr = sock.accept()
 

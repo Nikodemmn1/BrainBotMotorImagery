@@ -2,7 +2,8 @@ import pywt
 import math
 import numpy as np
 import torch
-from scipy.signal import lfilter, butter, buttord, welch
+import matplotlib.pyplot as plt
+from scipy.signal import lfilter, butter, buttord
 
 from SharedParameters.signal_parameters import CAL, OFFSET, UNIT, LOW_PASS_FREQ_PB, \
     HIGH_PASS_FREQ_PB, WELCH_OVERLAP_PERCENT, WELCH_SEGMENT_LEN, LOW_PASS_FREQ_SB,  \
@@ -27,7 +28,6 @@ def decode_data_from_bytes(raw_data):
     raw_data_array = np.array(raw_data)
     raw_data_array = raw_data_array.reshape((WORDS, 3))
     raw_data_array = raw_data_array.astype("int32")
-    #raw_data_array = np.flip(raw_data_array, 0)
     raw_data_array = ((raw_data_array[:, 0]) +
                       (raw_data_array[:, 1] << 8) +
                       (raw_data_array[:, 2] << 16))
@@ -35,23 +35,22 @@ def decode_data_from_bytes(raw_data):
 
     for j in range(CHANNELS):
         for i in range(SAMPLES):
-            data_struct[j, i] = raw_data_array[i * CHANNELS + j].astype('float32')
-            data_struct[j, i] *= CAL
-            data_struct[j, i] += OFFSET
-            data_struct[j, i] *= UNIT
+            data_struct[j, i] = raw_data_array[i * CHANNELS + j].astype('float64')
+            #data_struct[j, i] *= CAL
+            #data_struct[j, i] += OFFSET
+            #data_struct[j, i] *= UNIT
 
     return data_struct
-    #return np.flip(data_struct, 0)
 
 
 def _filter(data):
     f_ord, wn = buttord(LOW_PASS_FREQ_PB, LOW_PASS_FREQ_SB, MAX_LOSS_PB, MIN_ATT_SB, False,
-                        DATASET_FREQ)
-    low_b, low_a, *rest = butter(f_ord, wn, 'lowpass', False, 'ba', DATASET_FREQ)
+                        BIOSEMI_FREQ)
+    low_b, low_a, *rest = butter(f_ord, wn, 'lowpass', False, 'ba', BIOSEMI_FREQ)
 
     f_ord, wn = buttord(HIGH_PASS_FREQ_PB, HIGH_PASS_FREQ_SB, MAX_LOSS_PB, MIN_ATT_SB, False,
-                        DATASET_FREQ)
-    high_b, high_a, *rest = butter(f_ord, wn, 'highpass', False, 'ba', DATASET_FREQ)
+                        BIOSEMI_FREQ)
+    high_b, high_a, *rest = butter(f_ord, wn, 'highpass', False, 'ba', BIOSEMI_FREQ)
 
     converted_data = np.apply_along_axis(lambda c: lfilter(low_b, low_a, c), 1, data)
     converted_data = np.apply_along_axis(lambda c: lfilter(high_b, high_a, c), 1, converted_data)
@@ -73,15 +72,22 @@ def calculate_psd_welch_channel(c):
     return densities[filter_indices]
 
 
-def prepare_data_for_classification(data, mean, std):
+def prepare_data_for_classification(data):
     # data = data[:CHANNELS-1, :]
+
     data_with_reference = set_reference(data)
-    data_decimated = np.apply_along_axis(decimate, 1, data_with_reference, int(DECIMATION_FACTOR))
-    data_scaled = data_decimated * 1e6
-    data_filtered = _filter(data_scaled)
+
+    data_filtered = _filter(data_with_reference)
+    data_filtered = data_filtered[:, (data_filtered.shape[1] - 800 * DECIMATION_FACTOR):]
+
+    data_decimated = np.apply_along_axis(decimate, 1, data_filtered, int(DECIMATION_FACTOR))
+
     # data_psd = np.apply_along_axis(calculate_psd_welch_channel, 1, data_scaled)
     # data_psd[:, 0] = np.zeros(16)
-    data_normalized = np.apply_along_axis(lambda c: (c - mean) / std, 0, data_filtered)
+    mean = np.expand_dims(data_decimated.mean(1), 1)
+    std = np.expand_dims(data_decimated.std(1), 1)
+    data_normalized = (data_decimated - mean) / std
+
     data_reshaped = np.reshape(data_normalized, (1, 1, data_normalized.shape[0], data_normalized.shape[1]))
 
     return torch.from_numpy(data_reshaped).type(torch.float32)

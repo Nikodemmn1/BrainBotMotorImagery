@@ -25,7 +25,7 @@ def main():
     #                                     included_classes=included_classes,
     #                                     checkpoint_path="./lightning_logs/version_118/checkpoints/epoch=59-step=17640.ckpt")
 
-    trainer = Trainer(gpus=-1, callbacks=[TQDMProgressBar(refresh_rate=100),
+    trainer = Trainer(gpus=-1, callbacks=[TQDMProgressBar(refresh_rate=5),
                                           StochasticWeightAveraging(),
                                           ModelCheckpoint(save_weights_only=False)],
                       check_val_every_n_epoch=1, benchmark=True)
