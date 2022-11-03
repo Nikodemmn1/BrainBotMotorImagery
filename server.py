@@ -47,6 +47,7 @@ def main():
     buffer_filled = 0
 
     model = load_model()
+    mean_std = load_mean_std()
 
     sec_res = np.zeros(3)
     sec_samp = 0
@@ -65,7 +66,7 @@ def main():
             buffer_filled += SAMPLES
             sec_samp += 1
         else:
-            x = dc.prepare_data_for_classification(buffer)
+            x = dc.prepare_data_for_classification(buffer, mean_std["mean"], mean_std["std"])
             y = dc.get_classification(x, model)
             out_ind = np.argmax(y.numpy())
             sec_res[out_ind] += 1

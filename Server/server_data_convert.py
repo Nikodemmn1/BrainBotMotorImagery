@@ -72,7 +72,7 @@ def calculate_psd_welch_channel(c):
     return densities[filter_indices]
 
 
-def prepare_data_for_classification(data):
+def prepare_data_for_classification(data, mean, std):
     # data = data[:CHANNELS-1, :]
 
     data_with_reference = set_reference(data)
@@ -84,8 +84,9 @@ def prepare_data_for_classification(data):
 
     # data_psd = np.apply_along_axis(calculate_psd_welch_channel, 1, data_scaled)
     # data_psd[:, 0] = np.zeros(16)
-    mean = np.expand_dims(data_decimated.mean(1), 1)
-    std = np.expand_dims(data_decimated.std(1), 1)
+
+    mean = np.expand_dims(mean, 1)
+    std = np.expand_dims(std, 1)
     data_normalized = (data_decimated - mean) / std
 
     data_reshaped = np.reshape(data_normalized, (1, 1, data_normalized.shape[0], data_normalized.shape[1]))

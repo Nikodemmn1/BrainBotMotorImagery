@@ -8,6 +8,7 @@ from os.path import isfile, join, basename, normpath
 import numpy as np
 from scipy.signal import lfilter, butter, buttord, welch
 from scipy.fft import fft, fftfreq
+from Utilities.running_stats import RunningStats
 from joblib import Parallel, delayed
 import multiprocessing
 
@@ -17,18 +18,34 @@ import multiprocessing
 # If you have a lot of memory, you can also increase it, making the normalization process faster.
 # !!!ATTENTION!!!
 THREADS_NORMALIZATION = 2
-NORM_SPLIT_SIZE = 1000
 TRAIN_PERCENT = 0.8
 VAL_PERCENT = 0.1
 TEST_PERCENT = 1 - TRAIN_PERCENT - VAL_PERCENT
 
 
-def _normalize_job(split):
-    mean = np.mean(split, axis=2)
-    std = np.std(split, axis=2)
-    split_norm = split - np.reshape(mean, (mean.shape[0], mean.shape[1], 1))
-    split_norm /= np.reshape(std, (std.shape[0], std.shape[1], 1))
-    return split_norm
+def load_mean_std(path):
+    with open(path, "rb") as mean_std_file:
+        mean_std = pickle.load(mean_std_file)
+    return mean_std
+
+
+def _normalize_job(cl, cl_data):
+    print(F"Calculating mean and std for channel {cl}")
+    cl_data_changes = cl_data[:, 1:] - cl_data[:, :-1]
+    zeros = np.expand_dims(np.zeros(cl_data.shape[0]), axis=1)
+    cl_data_changes = np.concatenate((zeros, cl_data_changes), axis=1)
+
+    cl_data_changes = cl_data_changes.flatten().astype("float32")
+
+    running_stats = RunningStats()
+    push_vectorized = np.vectorize(running_stats.push)
+
+    push_vectorized(cl_data_changes)
+
+    mean = running_stats.mean()
+    std = running_stats.standard_deviation()
+
+    return cl, mean, std
 
 
 class EEGDataConverter:
@@ -57,6 +74,8 @@ class EEGDataConverter:
 
         # numerical from 0 to L-1, where L is labels for each dataset:
         self.labels = [[], [], []]
+
+        self.mean_std = None
 
     def convert_and_save(self):
         self._convert()
@@ -145,14 +164,31 @@ class EEGDataConverter:
 
         print("Convertion complete, proceeding with normalization...")
 
-        for dset in range(3):
-            split_count = self.converted_data[dset].shape[0] // NORM_SPLIT_SIZE
-            normalization_splits = np.array_split(self.converted_data[dset], split_count)
-            results = Parallel(n_jobs=THREADS_NORMALIZATION)(delayed(_normalize_job)(split)
-                                                             for split in normalization_splits)
-            self.converted_data[dset] = np.concatenate(results)
+        channel_count = self.converted_data[0].shape[1]
 
-        return
+        results = Parallel(n_jobs=THREADS_NORMALIZATION)(delayed(_normalize_job)(cl,
+                                                                                 self.converted_data[0][:, cl,
+                                                                                 :])
+                                                         for cl in range(channel_count))
+
+        results = sorted(results, key=lambda x: x[0])
+        results = list(map(lambda x: np.asarray([x[1], x[2]]).astype('float32'), results))
+        results = np.vstack(results).astype('float32')
+
+        print(results)
+
+        mean = results[:, 0]
+        std = results[:, 1]
+
+        print(mean)
+        print(std)
+
+        self._normalize_post_calc(mean, std)
+
+    def _normalize_post_calc(self, mean, std):
+        for dset in range(3):
+            self.converted_data[dset] = np.apply_along_axis(lambda c: (c - mean) / std, 1, self.converted_data[dset])
+        self.mean_std = {"mean": mean, "std": std}
 
     def _order_by_label_and_balance(self):
         labels_unique_values = sorted(list(set(self.labels[0])))
@@ -190,6 +226,10 @@ class EEGDataConverter:
                 allow_pickle=False, fix_imports=False)
         np.save(f"{self.output_file_base}_test.npy", np.array(self.converted_data[2], dtype=np.float32),
                 allow_pickle=False, fix_imports=False)
+        with open(f"{self.output_file_base}_mean_std.txt", 'w') as mean_std_txt_file:
+            mean_std_txt_file.write(f"MEAN: {self.mean_std['mean']}\nSTD: {self.mean_std['std']}")
+        with open(f"{self.output_file_base}_mean_std.pkl", 'wb') as mean_std_bin_file:
+            pickle.dump(self.mean_std, mean_std_bin_file)
 
 
 class LargeEEGDataConverter(EEGDataConverter):

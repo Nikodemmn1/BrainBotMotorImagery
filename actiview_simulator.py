@@ -43,7 +43,7 @@ samples = np.transpose(samples, (1, 0, 2)).flatten()
 packets_data = np.reshape(samples, (-1, WORDS * 3))
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.bind((TCP_AV_ADDRESS, TCP_AV_PORT + 1))
+sock.bind((TCP_AV_ADDRESS, TCP_AV_PORT))
 sock.listen()
 conn, addr = sock.accept()
 
