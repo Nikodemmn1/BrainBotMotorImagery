@@ -4,9 +4,8 @@ import random
 import pickle
 import Server.server_data_convert as dc
 import numpy as np
+import torch
 from Server.server_params import *
-from Models.OneDNet import OneDNet
-from Dataset.dataset import EEGDataset
 
 
 def create_sockets():
@@ -33,9 +32,7 @@ def load_mean_std():
 
 def load_model():
     """Loading the trained OneDNet model"""
-    full_dataset = EEGDataset("./Data/EEGLarge/EEGLarge.npy")
-    model = OneDNet.load_from_checkpoint("./checkpoint.ckpt", signal_len=full_dataset[0][0].shape[1],
-                                         classes_count=full_dataset.class_count)
+    model = torch.load("./model.pt")
     model.eval()
     return model
 
@@ -49,25 +46,36 @@ def main():
     buffer = np.zeros((CHANNELS, SERVER_BUFFER_LEN))
     buffer_filled = 0
 
-    mean_std = load_mean_std()
     model = load_model()
+    mean_std = load_mean_std()
+
+    sec_res = np.zeros(3)
+    sec_samp = 0
 
     while True:
         # Decoding the received packet from ActiView
         received_data_struct = tcp_client_sock.recv(WORDS * 3)
         raw_data = struct.unpack(str(WORDS * 3) + 'B', received_data_struct)
         decoded_data = dc.decode_data_from_bytes(raw_data)
-        decoded_data[CHANNELS-1, :] = np.bitwise_and(decoded_data[CHANNELS-1, :].astype(int), 2 ** 17 - 1)
+        # decoded_data[CHANNELS-1, :] = np.bitwise_and(decoded_data[CHANNELS-1, :].astype(int), 2 ** 17 - 1)
 
         buffer = np.roll(buffer, -SAMPLES, axis=1)
         buffer[:, -SAMPLES:] = decoded_data
 
         if buffer_filled + SAMPLES < SERVER_BUFFER_LEN:
             buffer_filled += SAMPLES
+            sec_samp += 1
         else:
             x = dc.prepare_data_for_classification(buffer, mean_std["mean"], mean_std["std"])
-            y = dc.get_classification(np.reshape(x, (1, x.shape[0], x.shape[1])).astype(np.float32), model)
-            print(np.argmax(y.numpy()) + 1)
+            y = dc.get_classification(x, model)
+            out_ind = np.argmax(y.numpy())
+            sec_res[out_ind] += 1
+
+            sec_samp += 1
+            if sec_samp >= 16:
+                print(f"Max: {np.argmax(sec_res)+1}: [{sec_res[0]}, {sec_res[1]}, {sec_res[2]}]")
+                sec_res = np.zeros(3)
+                sec_samp = 0
 
             # left = True if label == 1 else False
             # forward = True

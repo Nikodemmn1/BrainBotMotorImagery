@@ -4,7 +4,7 @@ from torch.utils.data import Dataset, Subset
 
 
 class EEGDataset(Dataset):
-    def __init__(self, train_file_path, val_file_path, test_file_path, included_classes=None):
+    def __init__(self, train_file_path, val_file_path, test_file_path, included_classes=None, included_channels=None):
         raw_data_train = np.load(train_file_path).astype(np.float32)
         raw_data_val = np.load(val_file_path).astype(np.float32)
         raw_data_test = np.load(test_file_path).astype(np.float32)
@@ -13,6 +13,11 @@ class EEGDataset(Dataset):
             raw_data_train = raw_data_train[included_classes, :, :]
             raw_data_val = raw_data_val[included_classes, :, :]
             raw_data_test = raw_data_test[included_classes, :, :]
+
+        if included_channels is not None:
+            raw_data_train = raw_data_train[:, :, included_channels, :]
+            raw_data_val = raw_data_val[:, :, included_channels, :]
+            raw_data_test = raw_data_test[:, :, included_channels, :]
 
         self.class_count = raw_data_train.shape[0]
 
@@ -31,6 +36,7 @@ class EEGDataset(Dataset):
         self.test_len = raw_data_test.shape[0]
 
         self.data = np.concatenate([raw_data_train, raw_data_val, raw_data_test], axis=0)
+        self.data = self.data.reshape((self.data.shape[0], 1, self.data.shape[1], self.data.shape[2]))
 
         self.labels = np.hstack([
             np.hstack([
