@@ -1,7 +1,7 @@
 import gc
+import os
 import pickle
 import math
-import mne
 import scipy.io
 from os import listdir
 from os.path import isfile, join, basename, normpath
@@ -10,7 +10,6 @@ from scipy.signal import lfilter, butter, buttord, welch
 from scipy.fft import fft, fftfreq
 from Utilities.running_stats import RunningStats
 from joblib import Parallel, delayed
-import multiprocessing
 
 # !!!ATTENTION!!!
 # If you don't have enough memory, change this to something smaller!
@@ -31,16 +30,13 @@ def load_mean_std(path):
 
 def _normalize_job(cl, cl_data):
     print(F"Calculating mean and std for channel {cl}")
-    cl_data_changes = cl_data[:, 1:] - cl_data[:, :-1]
-    zeros = np.expand_dims(np.zeros(cl_data.shape[0]), axis=1)
-    cl_data_changes = np.concatenate((zeros, cl_data_changes), axis=1)
 
-    cl_data_changes = cl_data_changes.flatten().astype("float32")
+    cl_data = cl_data.flatten().astype("float32")
 
     running_stats = RunningStats()
     push_vectorized = np.vectorize(running_stats.push)
 
-    push_vectorized(cl_data_changes)
+    push_vectorized(cl_data)
 
     mean = running_stats.mean()
     std = running_stats.standard_deviation()
@@ -79,6 +75,7 @@ class EEGDataConverter:
 
     def convert_and_save(self):
         self._convert()
+        del self.snippets
         self._process_post_convert()
         self._save_data()
 
@@ -175,10 +172,10 @@ class EEGDataConverter:
         results = list(map(lambda x: np.asarray([x[1], x[2]]).astype('float32'), results))
         results = np.vstack(results).astype('float32')
 
-        print(results)
-
         mean = results[:, 0]
         std = results[:, 1]
+
+        std = np.where(std == 0.0, np.ones(std.shape[0]), std).astype('float32')
 
         print(mean)
         print(std)
@@ -187,7 +184,7 @@ class EEGDataConverter:
 
     def _normalize_post_calc(self, mean, std):
         for dset in range(3):
-            self.converted_data[dset] = np.apply_along_axis(lambda c: (c - mean) / std, 1, self.converted_data[dset])
+            self.converted_data[dset] = (self.converted_data[dset] - mean[None, :, None]) / std[None, :, None]
         self.mean_std = {"mean": mean, "std": std}
 
     def _order_by_label_and_balance(self):
@@ -196,13 +193,13 @@ class EEGDataConverter:
         self.labels = [np.array(labels) for labels in self.labels]
 
         for dset in range(3):
-            by_label_list = [self.converted_data[dset][np.where(self.labels[dset] == label)] for label in
-                             labels_unique_values]
-            min_len = min([len(by_label) for by_label in by_label_list])
-            by_label_balance_indices = [np.random.choice(np.arange(len(by_label)), min_len, replace=False)
-                                        for by_label in by_label_list]
-            self.converted_data[dset] = [by_label[by_label_balance_indices[i], :, :] for i, by_label in
-                                         enumerate(by_label_list)]
+            self.converted_data[dset] = [self.converted_data[dset][np.where(self.labels[dset] == label)] for label in
+                                         labels_unique_values]
+            # min_len = min([len(by_label) for by_label in by_label_list])
+            # by_label_balance_indices = [np.random.choice(np.arange(len(by_label)), min_len, replace=False)
+            #                             for by_label in by_label_list]
+            # self.converted_data[dset] = [by_label[by_label_balance_indices[i], :, :] for i, by_label in
+            #                              enumerate(by_label_list)]
 
     def _flatten_data(self):
         self.converted_data = np.array(self.converted_data)
@@ -273,38 +270,82 @@ class LargeEEGDataConverter(EEGDataConverter):
 
 # TODO: Check trigger values representation in signal on BDF recordings and modify the range(1, 7) accordingly
 class BiosemiBDFConverter(EEGDataConverter):
-    DATASET_FREQ = 2000
-    LOW_PASS_FREQ_PB = 0.53
-    HIGH_PASS_FREQ_PB = 70
-    CHANNELS_ORDER = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-    WELCH_OVERLAP_PERCENT = 80
-    WELCH_SEGMENT_LEN = 350
+    DATASET_FREQ = 2048
 
     BUFFER_LENGTH = 8000
     OVERLAP = 800
 
-    CLASSES_COUNT = 6
+    CLASSES_COUNT = 3
 
-    def __init__(self, input_folder, output_folder, decimate=False):
-        super().__init__(input_folder, output_folder)
-        self.decimate = decimate
+    LOW_PASS_FREQ_PB = 30
+    LOW_PASS_FREQ_SB = 60
+    HIGH_PASS_FREQ_PB = 6
+    HIGH_PASS_FREQ_SB = 3
+
+    WELCH_OVERLAP_PERCENT = 80
+    WELCH_SEGMENT_LEN = 350
+
+    MAX_LOSS_PB = 2
+    MIN_ATT_SB = 8
+
+    CHANNELS_IN_FILE = 17  # with triggers
+    HEADER_LENGTH = 256 * (CHANNELS_IN_FILE + 1)
+
+    CHANNELS_ORDER = [*range(0, 16, 1)]
 
     def _convert_specific(self, i_file_path):
-        bdf_data = mne.io.read_raw_bdf(i_file_path, verbose=False)
-        raw_data = bdf_data.get_data()
-        triggers = raw_data[-1, :]
-        data = raw_data[self.CHANNELS_ORDER, :].astype(np.float32)
-        data *= 1e6
+        file_len_bytes = os.stat(i_file_path).st_size
+        file_len_bytes_headless = file_len_bytes - self.HEADER_LENGTH
+
+        channel_sections_count = file_len_bytes_headless // (self.CHANNELS_IN_FILE * self.DATASET_FREQ * 3)
+
+        with open(i_file_path, 'rb') as f:
+            data = f.read()
+        data = np.frombuffer(data[self.HEADER_LENGTH:], dtype='<u1')
+
+        samples = np.ndarray((self.CHANNELS_IN_FILE - 1,
+                              self.DATASET_FREQ * channel_sections_count, 3), dtype='<u1')
+
+        triggers = np.ndarray((1, self.DATASET_FREQ * channel_sections_count, 3), dtype='<u1')
+
+        for sec in range(channel_sections_count):
+            for ch in range(self.CHANNELS_IN_FILE):
+                for sam in range(self.DATASET_FREQ):
+                    beg = sec * self.CHANNELS_IN_FILE * self.DATASET_FREQ * 3 + ch * self.DATASET_FREQ * 3 + sam * 3
+                    if ch != self.CHANNELS_IN_FILE - 1:
+                        samples[ch, sec * self.DATASET_FREQ + sam, :] = data[beg:beg + 3]
+                    else:
+                        triggers[0, sec * self.DATASET_FREQ + sam, :] = data[beg:beg + 3]
+
+        raw_data = samples[:, :, 0].astype("int32") + samples[:, :, 1].astype("int32") * 256 + samples[:, :, 2].astype(
+            "int32") * 256 * 256
+        raw_data[raw_data > pow(2, 23)] -= pow(2, 24)
+
+        markers = triggers[0, :, 1]
+        markers = np.where(markers > 0,
+                           np.log2(np.bitwise_and(markers, -markers)).astype('int8') + 1,
+                           np.zeros(markers.shape[0]).astype('int8'))
+        markers -= 1
+
+        raw_data -= raw_data[15, :]
+        raw_data = raw_data.astype('float32')
 
         slice_start = 0
-        curr_trigger = -1
-        for i in range(triggers.size):
-            if triggers[i] != curr_trigger:
-                if curr_trigger in range(1, 7):
-                    recording = data[:, slice_start:i]
+        curr_marker = -1
+        for i in range(markers.size - 1):
+            if markers[i] != -1:
+                if curr_marker > 0 and markers[i - 1] == -1:
+                    recording = raw_data[:, slice_start:i]
                     recording_len_divisible = recording.shape[1] - recording.shape[1] % self.OVERLAP
-                    self.snippets[curr_trigger - 1] += np.split(recording[:, :recording_len_divisible],
-                                                                recording_len_divisible / self.OVERLAP, 1)
-                if triggers[i] in range(1, 7):
+                    self.snippets[curr_marker - 1] += np.split(recording[:, :recording_len_divisible],
+                                                               recording_len_divisible / self.OVERLAP, 1)
+                if markers[i] != 0 and markers[i + 1] == -1:
                     slice_start = i
-                curr_trigger = triggers[i]
+                curr_marker = markers[i]
+
+        for snippet_class in range(self.CLASSES_COUNT):
+            for snippet in self.snippets[snippet_class]:
+                snippet -= snippet.mean(axis=1)[:, None]
+                snippet *= 0.03125
+
+        return
