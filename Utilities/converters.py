@@ -10,6 +10,7 @@ from scipy.signal import lfilter, butter, buttord, welch
 from scipy.fft import fft, fftfreq
 from Utilities.running_stats import RunningStats
 from joblib import Parallel, delayed
+from scipy.signal import decimate
 
 # !!!ATTENTION!!!
 # If you don't have enough memory, change this to something smaller!
@@ -126,6 +127,9 @@ class EEGDataConverter:
                                                                        self.converted_data[dset][sample_no][cl])
                     self.converted_data[dset][sample_no][cl] = lfilter(high_b, high_a,
                                                                        self.converted_data[dset][sample_no][cl])
+                self.converted_data[dset][sample_no] = np.apply_along_axis(decimate, 1,
+                                                                           self.converted_data[dset][sample_no], 10,
+                                                                           ftype='fir')
 
     # It also performs filtering!
     def _calculate_psd_fft(self):
@@ -292,6 +296,8 @@ class BiosemiBDFConverter(EEGDataConverter):
     HEADER_LENGTH = 256 * (CHANNELS_IN_FILE + 1)
 
     CHANNELS_ORDER = [*range(0, 16, 1)]
+
+    DECIMATION_FACTOR = 10
 
     def _convert_specific(self, i_file_path):
         file_len_bytes = os.stat(i_file_path).st_size

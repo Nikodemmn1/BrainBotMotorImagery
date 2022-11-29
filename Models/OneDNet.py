@@ -40,7 +40,7 @@ class OneDNet(LightningModule):
         )
 
         self.classifier = nn.Sequential(
-            nn.Linear(130560, 250),
+            nn.Linear(119680, 250),
             nn.LeakyReLU(negative_slope=0.05, inplace=True),
             nn.BatchNorm1d(250),
             nn.Dropout(p=0.5),
