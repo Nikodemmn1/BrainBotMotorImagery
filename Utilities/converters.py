@@ -17,7 +17,7 @@ import multiprocessing
 # The less threads you use here, the less memory you need.
 # If you have a lot of memory, you can also increase it, making the normalization process faster.
 # !!!ATTENTION!!!
-THREADS_NORMALIZATION = 2
+THREADS_NORMALIZATION = 1
 TRAIN_PERCENT = 0.8
 VAL_PERCENT = 0.1
 TEST_PERCENT = 1 - TRAIN_PERCENT - VAL_PERCENT

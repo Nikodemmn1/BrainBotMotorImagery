@@ -17,7 +17,6 @@ class OneDNet(LightningModule):
         classes_count = len(included_classes)
 
         self.noise_inject = GaussianNoiseInjector(6, 0.5)
-
         self.features = nn.Sequential(
             nn.Conv2d(1, 32, kernel_size=(3, 5), padding='same', padding_mode='circular'),
             nn.LeakyReLU(negative_slope=0.05, inplace=True),
@@ -155,3 +154,32 @@ class GaussianNoiseInjector(nn.Module):
                                         device=torch.device('cuda')).normal_(mean=0, std=noise_std)
                     x[b, 0, ch, :] += noise
         return x
+
+
+class StratifiedBatchNormalization2d(nn.Module):
+    # input shape (N, C, H, W)
+    # TODO finish, recode mean
+    def __init__(self, features_num, files_num, samples_per_frame, eps=1e-05, running_stats=True):
+        super().__init__()
+        self.features_num = features_num
+        self.eps = eps
+        self.running_stats = running_stats
+        self.files_num = files_num
+        self.samples_per_frame = samples_per_frame
+        self.mean = torch.zeros(files_num, features_num)
+        self.variance = torch.zeros(files_num, features_num)
+        self.counts = torch.zeros(files_num).int()
+
+    def forward(self, x, file_ids):
+        if self.running_stats:
+            for i, file_id in enumerate(file_ids):
+                self.counts[file_id] += self.samples_per_frame
+                self.mean[file_id, :] = (self.mean[file_id, :]*(self.counts[file_id] - self.samples_per_frame) + torch.sum(x[i], dim=3).reshape((1,self.features_num)))/self.counts
+        else:
+            raise NotImplementedError
+            # self.mean[file_ids, :] = torch.mean(x, dim=3)
+            # self.variance[file_ids, :] = torch.var_mean(x, dim=3, unbiased=True)
+            # var_mean unbiased does Bessel's correction // used when population mean and variance is unknown
+        x = (x - self.mean[file_ids, :].reshape((x.shape[0], 1, -1, 1)))/torch.sqrt(self.variance[file_ids, :].reshape((x.shape[0], 1, -1, 1)) + self.eps)
+        return x
+
