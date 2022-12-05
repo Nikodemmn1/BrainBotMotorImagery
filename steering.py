@@ -11,6 +11,7 @@ from UDP_Client.communication_parameters import *
 
 def main():
     MODEL_PATH = "model.ckpt"
+    freq = 100
     included_classes = [0, 1, 2]
     # included_channels = [3, 6, 7, 8, 11]
     included_channels = range(16)
@@ -46,6 +47,7 @@ def main():
         decision = model(torch.from_numpy(command_data[np.newaxis, ...])).detach().numpy()
         decision = np.argmax(decision)
         udp_server_sock.sendto(str(decision.item()).encode('utf-8'), ("localhost", 5003))
+        time.sleep(1/freq)
         print(decision)
 
 if __name__ == "__main__":
