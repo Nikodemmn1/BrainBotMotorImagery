@@ -63,6 +63,8 @@ class EEGDataConverter:
 
     CLASSES_COUNT = None
 
+    DECIMATION_FACTOR = 5
+
     def __init__(self, input_folder, output_folder):
         input_paths = [join(input_folder, file_name) for file_name in listdir(input_folder)]
         self.input_file_paths = [input_file_path for input_file_path in input_paths if isfile(input_file_path)]
@@ -127,9 +129,11 @@ class EEGDataConverter:
                                                                        self.converted_data[dset][sample_no][cl])
                     self.converted_data[dset][sample_no][cl] = lfilter(high_b, high_a,
                                                                        self.converted_data[dset][sample_no][cl])
-                self.converted_data[dset][sample_no] = np.apply_along_axis(decimate, 1,
-                                                                           self.converted_data[dset][sample_no], 10,
-                                                                           ftype='fir')
+                if self.DECIMATION_FACTOR is not None:
+                    self.converted_data[dset][sample_no] = np.apply_along_axis(decimate, 1,
+                                                                               self.converted_data[dset][sample_no],
+                                                                               self.DECIMATION_FACTOR,
+                                                                               ftype='fir')
 
     # It also performs filtering!
     def _calculate_psd_fft(self):
@@ -297,7 +301,7 @@ class BiosemiBDFConverter(EEGDataConverter):
 
     CHANNELS_ORDER = [*range(0, 16, 1)]
 
-    DECIMATION_FACTOR = 10
+    DECIMATION_FACTOR = 50
 
     def _convert_specific(self, i_file_path):
         file_len_bytes = os.stat(i_file_path).st_size
@@ -333,8 +337,8 @@ class BiosemiBDFConverter(EEGDataConverter):
                            np.zeros(markers.shape[0]).astype('int8'))
         markers -= 1
 
-        raw_data -= raw_data[15, :]
         raw_data = raw_data.astype('float32')
+        raw_data -= 0.55 * (raw_data[6, :] + raw_data[8, :])  # referencing the signal
 
         slice_start = 0
         curr_marker = -1
