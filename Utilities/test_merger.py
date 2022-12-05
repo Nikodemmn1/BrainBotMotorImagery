@@ -18,14 +18,13 @@ class TestMerger:
 
         raw_data = np.concatenate((raw_data_train,raw_data_val, raw_data_test), axis=1)
 
-        with open(f'{self.path}_mean_std.pkl', 'rb') as mean_std_bin_file:
-            self.mean_std_dataset = pickle.load(mean_std_bin_file)
-        with open(f'./DataTest/{self.mean_std_prefix}_mean_std.pkl', 'rb') as mean_std_bin_file:
-            self.mean_std_good = pickle.load(mean_std_bin_file)
-
-        raw_data = (raw_data * self.mean_std_dataset['std'][None, None, :, None] +
-                    self.mean_std_dataset['mean'][None, None, :, None] -
-                    self.mean_std_good['mean'][None, None, :, None]) / self.mean_std_good['std'][None, None, :, None]
+        #with open(f'{self.path}_mean_std.pkl', 'rb') as mean_std_bin_file:
+        #    self.mean_std_dataset = pickle.load(mean_std_bin_file)
+        #with open(f'./DataTest/{self.mean_std_prefix}_mean_std.pkl', 'rb') as mean_std_bin_file:
+        #    self.mean_std_good = pickle.load(mean_std_bin_file)
+        #raw_data = (raw_data * self.mean_std_dataset['std'][None, None, :, None] +
+        #            self.mean_std_dataset['mean'][None, None, :, None] -
+        #            self.mean_std_good['mean'][None, None, :, None]) / self.mean_std_good['std'][None, None, :, None]
 
         np.save(f"{self.path_out}.npy", np.array(raw_data, dtype=np.float32),
                 allow_pickle=False, fix_imports=False)
