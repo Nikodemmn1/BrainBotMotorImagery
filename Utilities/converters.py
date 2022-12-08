@@ -63,7 +63,7 @@ class EEGDataConverter:
 
     CLASSES_COUNT = None
 
-    DECIMATION_FACTOR = 5
+    DECIMATION_FACTOR = None
 
     def __init__(self, input_folder, output_folder):
         input_paths = [join(input_folder, file_name) for file_name in listdir(input_folder)]
@@ -256,6 +256,8 @@ class LargeEEGDataConverter(EEGDataConverter):
 
     MAX_LOSS_PB = 2
     MIN_ATT_SB = 8
+
+    DECIMATION_FACTOR = 5
 
     def _convert_specific(self, i_file_path):
         mat = scipy.io.loadmat(i_file_path)
