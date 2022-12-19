@@ -1,31 +1,25 @@
+import pickle
+
 import numpy as np
-from os.path import join, basename, normpath
+from os.path import join, basename, normpath, isfile
 
 class Merger:
-    def __init__(self, path1, path2, path_out):
-        self.path1 = join(path1, basename(normpath(path1)))
-        self.path2 = join(path2, basename(normpath(path2)))
-        self.path_out = join(path_out, basename(normpath(path_out)))
+    def __init__(self, in_paths, out_path):
+        self.in_paths = [join(in_path, basename(normpath(in_path))) for in_path in in_paths]
+        self.out_path = join(out_path, basename(normpath(out_path)))
+
 
     def merge(self):
-        raw_data_train1 = np.load(f"{self.path1}_train.npy").astype(np.float32)
-        raw_data_val1 = np.load(f"{self.path1}_train.npy").astype(np.float32)
-        raw_data_test1 = np.load(f"{self.path1}_train.npy").astype(np.float32)
-
-        raw_data_train2 = np.load(f"{self.path2}_train.npy").astype(np.float32)
-        raw_data_val2 = np.load(f"{self.path2}_train.npy").astype(np.float32)
-        raw_data_test2 = np.load(f"{self.path2}_train.npy").astype(np.float32)
-
-        raw_data_train = np.concatenate((raw_data_train1,
-                                         raw_data_train2[:3, :, :, :],
-                                         raw_data_val2[:3, :, :, :],
-                                         raw_data_test2[:3, :, :, :]), axis=1)
-        raw_data_val = raw_data_val1
-        raw_data_test = raw_data_test1
-
-        np.save(f"{self.path_out}_train.npy", np.array(raw_data_train, dtype=np.float32),
-                allow_pickle=False, fix_imports=False)
-        np.save(f"{self.path_out}_val.npy", np.array(raw_data_val, dtype=np.float32),
-                allow_pickle=False, fix_imports=False)
-        np.save(f"{self.path_out}_test.npy", np.array(raw_data_test, dtype=np.float32),
-                allow_pickle=False, fix_imports=False)
+        for dataset_type in ['train', 'val', 'test']:
+            unmerged_data = []
+            for in_path in self.in_paths:
+                final_in_path = f"{in_path}_{dataset_type}.npy"
+                if isfile(final_in_path):
+                    unmerged_data += np.load(final_in_path).astype('float32')
+            if len(unmerged_data) == 0:
+                print(f"Error - no {dataset_type} data provided!")
+                return
+            else:
+                merged_data = np.concatenate(unmerged_data, axis=1)
+                out_path = f"{self.out_path}_{dataset_type}.npy"
+                np.save(out_path, merged_data, dtype="float32")
