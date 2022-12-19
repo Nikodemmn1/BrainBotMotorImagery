@@ -28,9 +28,9 @@ def decode_data_from_bytes(raw_data):
     raw_data_array = np.array(raw_data)
     raw_data_array = raw_data_array.reshape((WORDS, 3))
     raw_data_array = raw_data_array.astype("int32")
-    raw_data_array = raw_data_array[:, :, 0].astype("int32") + \
-                     raw_data_array[:, :, 1].astype("int32") * 256 + \
-                     raw_data_array[:, :, 2].astype("int32") * 256 * 256
+    raw_data_array = raw_data_array[:, 0].astype("int32") + \
+                     raw_data_array[:, 1].astype("int32") * 256 + \
+                     raw_data_array[:, 2].astype("int32") * 256 * 256
     raw_data_array[raw_data_array >= (1 << 23)] -= (1 << 24)
 
     for j in range(CHANNELS):

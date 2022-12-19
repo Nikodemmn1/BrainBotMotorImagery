@@ -67,6 +67,7 @@ def main():
             sec_samp += 1
         else:
             x = dc.prepare_data_for_classification(buffer, mean_std["mean"], mean_std["std"])
+            x = x[:, :, 2:, :]
             y = dc.get_classification(x, model)
             out_ind = np.argmax(y.numpy())
             sec_res[out_ind] += 1
