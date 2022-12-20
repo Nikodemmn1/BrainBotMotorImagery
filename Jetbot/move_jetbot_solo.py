@@ -1,9 +1,11 @@
 import nanocamera as nano
 
+# To musi być na początku, bo inaczej wywali błąd
 RESOLUTION = (384, 384)
 camera = nano.Camera(flip=0, width=RESOLUTION[0], height=RESOLUTION[1], fps=10)
 frame = camera.read()
 print('Pierwszy frame', frame)
+
 import asyncio
 import torch
 import urllib.request
@@ -13,8 +15,17 @@ import time
 import numpy as np
 from jetbot import Robot
 
+MEAN_PIXEL_COUNT_RATIO = 0.1
+MEAN_PIXEL_COUNT = int(RESOLUTION[0] * 0.35 * RESOLUTION[1] * 0.2 * MEAN_PIXEL_COUNT_RATIO)
+Y_BOX_POSITION = (int(RESOLUTION[1] * 0.4), int(RESOLUTION[1] * 0.6))
+X_BOX_POSITION = (
+    int(RESOLUTION[0] * 0.05), int(RESOLUTION[0] * 0.35), int(RESOLUTION[0] * 0.7), int(RESOLUTION[0] * 0.95))
+frame_count = 3
+min_safe_distance = 500
+
 
 def load_model_midas():
+    print('load_midas')
     # model_type = "DPT_Large"     # MiDaS v3 - Large     (highest accuracy, slowest inference speed)
     # model_type = "DPT_Hybrid"   # MiDaS v3 - Hybrid    (medium accuracy, medium inference speed)
     model_type = "MiDaS_small"  # MiDaS v2.1 - Small   (lowest accuracy, highest inference speed)
@@ -87,61 +98,47 @@ def save_frame(frame):
     return 1
 
 
-MEAN_PIXEL_COUNT_RATIO = 0.1
-MEAN_PIXEL_COUNT = int(RESOLUTION[0] * 0.35 * RESOLUTION[1] * 0.2 * MEAN_PIXEL_COUNT_RATIO)
-
-
 def mean_biggest_values(array):
     array = array.flatten()
     ind = np.argpartition(array, -MEAN_PIXEL_COUNT)[MEAN_PIXEL_COUNT:]
     return np.average(array[ind])
 
 
-Y_AVG = (int(RESOLUTION[1] * 0.4), int(RESOLUTION[1] * 0.6))
-X_AVG = (int(RESOLUTION[0] * 0.05), int(RESOLUTION[0] * 0.35), int(RESOLUTION[0] * 0.7), int(RESOLUTION[0] * 0.95))
-
-
 def average(depth_image):
-    left = mean_biggest_values(depth_image[Y_AVG[0]:Y_AVG[1], X_AVG[0]:X_AVG[1]])
-    mid = mean_biggest_values(depth_image[Y_AVG[0]:Y_AVG[1], X_AVG[1]:X_AVG[2]])
-    right = mean_biggest_values(depth_image[Y_AVG[0]:Y_AVG[1], X_AVG[2]:X_AVG[3]])
-    return [left, mid, right]
+    left = mean_biggest_values(depth_image[Y_BOX_POSITION[0]:Y_BOX_POSITION[1], X_BOX_POSITION[0]:X_BOX_POSITION[1]])
+    mid = mean_biggest_values(depth_image[Y_BOX_POSITION[0]:Y_BOX_POSITION[1], X_BOX_POSITION[1]:X_BOX_POSITION[2]])
+    right = mean_biggest_values(depth_image[Y_BOX_POSITION[0]:Y_BOX_POSITION[1], X_BOX_POSITION[2]:X_BOX_POSITION[3]])
+    return np.array([left, mid, right])
+
+
+def get_free_boxes(avg):
+    avg /= frame_count
+    is_free = avg < min_safe_distance
+
+    print(f"Distances: left={avg[0]} middle={avg[1]} right{avg[2]}")
+    print(f"is_free: left={is_free[0]} middle={is_free[1]} right{is_free[2]}")
+
+    return is_free
 
 
 if __name__ == '__main__':
-    i = 0
-    print('start')
     robot = Robot()
     print('CSI Camera ready? - ', camera.isReady())
-
-    print('load_midas')
     midas, transform, device = load_model_midas()
-    avg = [0, 0, 0]
-    is_free = [0, 0, 0]
-    frame_count = 3
-    min_safe_distance = 500
 
+    avg = np.array([0., 0., 0.])
+    i = 0
     while True:
         i += 1
         frame = camera.read()
-
         depth_image = predict_midas(frame)
-        avg_temp = average(depth_image)
-        avg[0] += avg_temp[0]
-        avg[1] += avg_temp[1]
-        avg[2] += avg_temp[2]
-        if i == frame_count:
-            avg[0] = avg[0] / frame_count
-            avg[1] = avg[1] / frame_count
-            avg[2] = avg[2] / frame_count
-            is_free[0] = avg[0] < min_safe_distance
-            is_free[1] = avg[1] < min_safe_distance
-            is_free[2] = avg[2] < min_safe_distance
+        avg += average(depth_image)
 
-            print('x', avg[0], avg[1], avg[2], is_free)
-            i = 0
-            avg = [0, 0, 0]
+        if i == frame_count:
+            is_free = get_free_boxes(avg)
             asyncio.run(move_robot(is_free))
+            avg = np.array([0., 0., 0.])
+            i = 0
 
     robot.stop()
     camera.release()
