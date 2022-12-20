@@ -1,10 +1,10 @@
 import nanocamera as nano
 
-# To musi być na początku, bo inaczej wywali błąd
+# !!It has to be at beginning otherwise randomly crashes when starting!!
 RESOLUTION = (384, 384)
 camera = nano.Camera(flip=0, width=RESOLUTION[0], height=RESOLUTION[1], fps=10)
 frame = camera.read()
-print('Pierwszy frame', frame)
+print('First frame', frame)  # just to be sure camera works fine all the time
 
 import asyncio
 import torch
@@ -105,35 +105,57 @@ class Jetson:
         self.avg += self.average(depth_image)
 
     async def move_robot(self, command, speed=0.3, sleep_time=0.2):
-        if self.free_boxes[1] and self.free_boxes[0] and self.free_boxes[2]:
-            print('FORWARD')
-            print('speed', speed)
-            robot.forward(speed)
-        elif self.free_boxes[1] and self.free_boxes[0]:
-            print('LEFT')
-            robot.left(speed)
-            time.sleep(0.1)
-            robot.forward(speed)
-        elif self.free_boxes[1] and self.free_boxes[2]:
-            print('RIGHT')
-            robot.left(speed)
-            time.sleep(0.1)
-            robot.forward(speed)
-        elif self.free_boxes[0]:
-            print('BACK LEFT')
-            robot.left(speed)
-            time.sleep(sleep_time)
-            robot.forward(speed)
-        elif self.free_boxes[2]:
-            print('BACK RIGHT')
-            robot.right(speed)
-            time.sleep(sleep_time)
-            robot.forward(speed)
-        else:
-            print('BACK AROUND')
-            robot.backward(speed)
-            time.sleep(0.3)
-            robot.left(speed)
+        left = self.free_boxes[0]
+        front = self.free_boxes[1]
+        right = self.free_boxes[2]
+
+        if command == 'forward':
+            if left and front and right:
+                print(f"Executing command: {command} - Going FRONT")
+                robot.forward(speed)
+            elif left and front:
+                print(f"Executing command: {command} - Going FRONT-SLIGHTLY-LEFT")
+                robot.left(speed)
+                time.sleep(0.1)
+                robot.forward(speed)
+            elif front and right:
+                print(f"Executing command: {command} - Going FRONT-SLIGHTLY-RIGHT")
+                robot.right(speed)
+                time.sleep(0.1)
+                robot.forward(speed)
+            elif left:
+                print(f"Executing command: {command} - Going LEFT")
+                robot.left(speed)
+                time.sleep(sleep_time)
+                robot.forward(speed)
+            elif right:
+                print(f"Executing command: {command} - Going RIGHT")
+                robot.left(speed)
+                time.sleep(sleep_time)
+                robot.forward(speed)
+            else:
+                print(f"Executing command: {command} - Going TURN-AROUND")
+                robot.backward(speed)
+                time.sleep(0.3)
+                robot.left(speed)
+        elif command == 'left':
+            if left:
+                print(f"Executing command: {command} - Going LEFT")
+                robot.left(speed)
+            else:
+                print(f"Executing command: {command} - Going TURN-AROUND")
+                robot.backward(speed)
+                time.sleep(0.3)
+                robot.left(speed)
+        elif command == 'right':
+            if left:
+                print(f"Executing command: {command} - Going RIGHT")
+                robot.right(speed)
+            else:
+                print(f"Executing command: {command} - Going TURN-AROUND")
+                robot.backward(speed)
+                time.sleep(0.3)
+                robot.left(speed)
 
         time.sleep(sleep_time)
         robot.stop()
