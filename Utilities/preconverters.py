@@ -36,10 +36,12 @@ class PreConverter:
 
 class BiosemiBDFPreConverter(PreConverter):
     DATASET_FREQ = 2048
-    OVERLAP = 800
+    OVERLAP = 128
     CLASSES_COUNT = 3
     CHANNELS_IN_FILE = 17  # with triggers
     HEADER_LENGTH = 256 * (CHANNELS_IN_FILE + 1)
+
+    MEAN_PERIOD_LEN = 8192
 
     def preconvert_file(self, i_file_path):
         file_len_bytes = os.stat(i_file_path).st_size
@@ -78,7 +80,7 @@ class BiosemiBDFPreConverter(PreConverter):
         raw_data = raw_data.astype('float32')
         raw_data -= 0.55 * (raw_data[6, :] + raw_data[8, :])  # referencing the signal
 
-        slice_start = 0
+        slice_start = -1
         curr_marker = -1
         for i in range(markers.size - 1):
             if markers[i] != -1:
@@ -86,20 +88,26 @@ class BiosemiBDFPreConverter(PreConverter):
                     recording = raw_data[:, slice_start:i]
                     recording_len_excess = recording.shape[1] % self.OVERLAP
                     recording_len_divisible = recording.shape[1] - recording_len_excess
-                    beg_excess = recording_len_excess // 2
-                    end_excess = recording_len_excess - beg_excess
-                    self.snippets[curr_marker - 1] += [np.split(recording[:, beg_excess:-end_excess],
-                                                               recording_len_divisible / self.OVERLAP, 1)]
+                    recording_splits = np.split(recording[:, recording_len_excess:],
+                                  recording_len_divisible / self.OVERLAP, 1)
+                    recording_split_indices = np.arange(recording_len_divisible, step=self.OVERLAP)[1:]
+                    recording_split_indices = np.append(recording_split_indices, [recording_len_divisible])
+                    means = []
+                    for split_i in recording_split_indices:
+                        raw_data_index = i - recording.shape[1] + recording_len_excess + split_i
+                        if raw_data_index < self.MEAN_PERIOD_LEN:
+                            mean = raw_data[:, :raw_data_index].mean(axis=1)
+                        else:
+                            mean = raw_data[:, raw_data_index - self.MEAN_PERIOD_LEN:raw_data_index].mean(axis=1)
+                        means.append(mean)
+                    self.snippets[curr_marker - 1] += [(
+                        recording_splits,
+                        means
+                    )]
+                    slice_start = -1
                 if markers[i] != 0 and markers[i + 1] == -1:
                     slice_start = i
                 curr_marker = markers[i]
-
-        for snippet_class in range(self.CLASSES_COUNT):
-            for snippet in self.snippets[snippet_class]:
-                snippet_mean = np.concatenate(snippet, axis=1).mean(axis=1)
-                for i in range(len(snippet)):
-                    snippet[i] -= snippet_mean[:, None]
-                    snippet[i] *= 0.03125
 
 
 class LargeEEGDataPreConverter(PreConverter):

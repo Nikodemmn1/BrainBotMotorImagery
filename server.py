@@ -46,6 +46,8 @@ def main():
     buffer = np.zeros((CHANNELS, SERVER_BUFFER_LEN))
     buffer_filled = 0
 
+    buffer_mean_dc = np.zeros((CHANNELS, MEAN_PERIOD_LEN))
+
     model = load_model()
     mean_std = load_mean_std()
 
@@ -62,21 +64,26 @@ def main():
         buffer = np.roll(buffer, -SAMPLES, axis=1)
         buffer[:, -SAMPLES:] = decoded_data
 
+        buffer_mean_dc = np.roll(buffer_mean_dc, -SAMPLES, axis=1)
+        buffer_mean_dc[:, -SAMPLES:] = decoded_data
+
         if buffer_filled + SAMPLES < SERVER_BUFFER_LEN:
             buffer_filled += SAMPLES
             sec_samp += 1
         else:
-            x = dc.prepare_data_for_classification(buffer, mean_std["mean"], mean_std["std"])
+            dc_means = buffer_mean_dc.mean(axis=1)
+            buffer_no_dc = dc.remove_dc_offset(buffer, dc_means)
+            x = dc.prepare_data_for_classification(buffer_no_dc, mean_std["mean"], mean_std["std"])
             x = x[:, :, 2:, :]
             y = dc.get_classification(x, model)
             out_ind = np.argmax(y.numpy())
             sec_res[out_ind] += 1
 
             sec_samp += 1
-            if sec_samp >= 16:
-                print(f"Max: {np.argmax(sec_res)+1}: [{sec_res[0]}, {sec_res[1]}, {sec_res[2]}]")
+            if sec_samp % 16 == 0:
+                time = sec_samp * 0.0625
+                print(f"[{time:.2f}]Max: {np.argmax(sec_res)+1}: [{sec_res[0]}, {sec_res[1]}, {sec_res[2]}]")
                 sec_res = np.zeros(3)
-                sec_samp = 0
 
             # left = True if label == 1 else False
             # forward = True

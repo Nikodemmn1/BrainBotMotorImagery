@@ -90,6 +90,7 @@ class EEGDataConverter:
         #all_file_indices = np.arange(in_files_count)
         #np.random.shuffle(all_file_indices)
         #file_indices = np.split(all_file_indices, [train_len, train_len + val_len])
+        buffer_duplicate = np.zeros((len(self.CHANNELS_ORDER), self.BUFFER_LENGTH)).astype('float32')
 
         for dset in range(3):
             for i_file_path in self.input_file_paths[dset]:
@@ -99,16 +100,26 @@ class EEGDataConverter:
                     for snippet in labeled_snippets:
                         buffer = np.zeros((len(self.CHANNELS_ORDER), self.BUFFER_LENGTH)).astype('float32')
                         buffer_filled = 0
-                        for mini_snippet in snippet:
+                        assert len(snippet[0]) == len(snippet[1])
+                        for mini_snippet_i in range(len(snippet[0])):
+                            mini_snippet = snippet[0][mini_snippet_i]
+                            mini_snippet_mean = snippet[1][mini_snippet_i][:, None]
                             buffer = np.roll(buffer, -self.OVERLAP, 1)
                             buffer[:, -self.OVERLAP:] = mini_snippet
 
                             if buffer_filled + self.OVERLAP < self.BUFFER_LENGTH:
                                 buffer_filled += self.OVERLAP
                             else:
-                                buffer_filtered = self._filter(buffer)
-                                self.converted_data[dset].append(buffer_filtered)
+                                buffer_duplicate[:, ...] = buffer
+                                buffer -= mini_snippet_mean
+                                buffer *= 0.03125
+                                buffer = self._filter(buffer)
+                                buffer -= buffer.min(axis=1)[:, None]
+                                buffer += 5e-10
+                                buffer = np.log(buffer)
+                                self.converted_data[dset].append(buffer)
                                 self.labels[dset].append(label)
+                                buffer = buffer_duplicate
                 del snippets
                 gc.collect()
 
@@ -239,8 +250,8 @@ class LargeEEGDataConverter(EEGDataConverter):
 class BiosemiBDFConverter(EEGDataConverter):
     DATASET_FREQ = 2048
 
-    BUFFER_LENGTH = 8000
-    OVERLAP = 800
+    BUFFER_LENGTH = 3200
+    OVERLAP = 128
 
     CLASSES_COUNT = 3
 
@@ -253,11 +264,11 @@ class BiosemiBDFConverter(EEGDataConverter):
     WELCH_SEGMENT_LEN = 350
 
     MAX_LOSS_PB = 2
-    MIN_ATT_SB = 8
+    MIN_ATT_SB = 6
 
     CHANNELS_IN_FILE = 17  # with triggers
     HEADER_LENGTH = 256 * (CHANNELS_IN_FILE + 1)
 
     CHANNELS_ORDER = [*range(0, 16, 1)]
 
-    DECIMATION_FACTOR = 40
+    DECIMATION_FACTOR = 30

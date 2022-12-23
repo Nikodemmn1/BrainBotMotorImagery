@@ -7,7 +7,7 @@ from scipy.signal import lfilter, butter, buttord
 
 from SharedParameters.signal_parameters import CAL, OFFSET, UNIT, LOW_PASS_FREQ_PB, \
     HIGH_PASS_FREQ_PB, WELCH_OVERLAP_PERCENT, WELCH_SEGMENT_LEN, LOW_PASS_FREQ_SB, \
-    MAX_LOSS_PB, MIN_ATT_SB, HIGH_PASS_FREQ_SB, BIOSEMI_FREQ
+    MAX_LOSS_PB, MIN_ATT_SB, HIGH_PASS_FREQ_SB, DATASET_FREQ
 from Server.server_params import *
 from scipy.signal import welch, decimate
 
@@ -40,21 +40,25 @@ def decode_data_from_bytes(raw_data):
     # setting reference
     data_struct -= 0.55 * (data_struct[6, :] + data_struct[8, :])
 
-    # multiplying by unit and removing the mean (DC offset)
-    data_struct *= 0.03125
-    data_struct -= data_struct.mean(axis=1)[:, None]
-
     return data_struct
+
+
+def remove_dc_offset(buffer, dc_means):
+    buffer_no_dc = np.copy(buffer)
+    # multiplying by unit and removing the mean (DC offset)
+    buffer_no_dc -= dc_means[:, None]
+    buffer_no_dc *= 0.03125
+    return buffer_no_dc
 
 
 def _filter(data):
     f_ord, wn = buttord(LOW_PASS_FREQ_PB, LOW_PASS_FREQ_SB, MAX_LOSS_PB, MIN_ATT_SB, False,
-                        BIOSEMI_FREQ)
-    low_b, low_a, *rest = butter(f_ord, wn, 'lowpass', False, 'ba', BIOSEMI_FREQ)
+                        DATASET_FREQ)
+    low_b, low_a, *rest = butter(f_ord, wn, 'lowpass', False, 'ba', DATASET_FREQ)
 
     f_ord, wn = buttord(HIGH_PASS_FREQ_PB, HIGH_PASS_FREQ_SB, MAX_LOSS_PB, MIN_ATT_SB, False,
-                        BIOSEMI_FREQ)
-    high_b, high_a, *rest = butter(f_ord, wn, 'highpass', False, 'ba', BIOSEMI_FREQ)
+                        DATASET_FREQ)
+    high_b, high_a, *rest = butter(f_ord, wn, 'highpass', False, 'ba', DATASET_FREQ)
 
     converted_data = np.apply_along_axis(lambda c: lfilter(low_b, low_a, c), 1, data)
     converted_data = np.apply_along_axis(lambda c: lfilter(high_b, high_a, c), 1, converted_data)
@@ -75,9 +79,13 @@ def prepare_data_for_classification(data, mean, std):
     # data = data[:CHANNELS-1, :]
 
     data_filtered = _filter(data)
-    data_filtered = data_filtered[:, (data_filtered.shape[1] - 800 * DECIMATION_FACTOR):]
+    # data_filtered = data_filtered[:, (data_filtered.shape[1] - 800 * DECIMATION_FACTOR):]
 
     data_decimated = np.apply_along_axis(decimate, 1, data_filtered, int(DECIMATION_FACTOR), ftype='fir')
+
+    data_decimated -= data_decimated.min(axis=1)[:, None]
+    data_decimated += 5e-10
+    data_decimated = np.log(data_decimated)
 
     # data_psd = np.apply_along_axis(calculate_psd_welch_channel, 1, data_scaled)
     # data_psd[:, 0] = np.zeros(16)

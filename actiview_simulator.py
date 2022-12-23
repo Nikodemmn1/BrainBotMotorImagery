@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from Server.server_params import *
 import socket
 
-LOAD = 1
+LOAD = 0
 
 if not LOAD:
     # https://www.biosemi.com/faq/file_format.htm
