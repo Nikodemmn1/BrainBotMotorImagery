@@ -17,9 +17,9 @@ from scipy.signal import decimate
 # The less threads you use here, the less memory you need.
 # If you have a lot of memory, you can also increase it, making the normalization process faster.
 # !!!ATTENTION!!!
-THREADS_NORMALIZATION = 2
-TRAIN_PERCENT = 0.8
-VAL_PERCENT = 0.1
+THREADS_NORMALIZATION = 1
+TRAIN_PERCENT = 1
+VAL_PERCENT = 0
 TEST_PERCENT = 1 - TRAIN_PERCENT - VAL_PERCENT
 
 
@@ -77,9 +77,12 @@ class EEGDataConverter:
         self.mean_std = None
 
     def convert_and_save(self):
+        print("Converting_data..")
         self._convert()
         del self.snippets
+        print("Processing data")
         self._process_post_convert()
+        print("Saving values...")
         self._save_data()
 
     # The unit must be 1μV, self.snippets should be non-overlapping recording fragments of size self.OVERLAP
@@ -163,7 +166,7 @@ class EEGDataConverter:
     def _normalize(self):
         print("Converting to numpy array...")
 
-        for dset in range(3):
+        for dset in range(1):
             self.converted_data[dset] = np.dstack(self.converted_data[dset]).astype('float32').transpose((2, 0, 1))
             gc.collect()
 
@@ -301,7 +304,7 @@ class BiosemiBDFConverter(EEGDataConverter):
 
     CHANNELS_ORDER = [*range(0, 16, 1)]
 
-    DECIMATION_FACTOR = 50
+    DECIMATION_FACTOR = 40
 
     def _convert_specific(self, i_file_path):
         file_len_bytes = os.stat(i_file_path).st_size
