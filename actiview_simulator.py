@@ -12,7 +12,7 @@ if not LOAD:
     CHANNELS_IN_FILE = 17  # with triggers
     HEADER_LENGTH = 256 * (CHANNELS_IN_FILE + 1)
     SAMPLING_RATE = 2048
-    FILE_PATH = "./testdata.bdf"
+    FILE_PATH = "DataBDF/TrainData/Nikodem/Nikodem_0.bdf"
 
     file_bytes = os.stat(FILE_PATH).st_size
     file_bytes_no_head = file_bytes - HEADER_LENGTH
@@ -43,8 +43,8 @@ samples = np.transpose(samples, (1, 0, 2)).flatten()
 packets_data = np.reshape(samples, (-1, WORDS * 3))
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.bind((TCP_AV_ADDRESS, TCP_AV_PORT))
-sock.listen()
+sock.bind(("", TCP_AV_PORT))
+sock.listen(0)
 conn, addr = sock.accept()
 
 with conn:
