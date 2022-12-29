@@ -65,12 +65,15 @@ def main():
     frames_saved = 0
 
     while True:
+
         # Decoding the received packet from ActiView
         received_data_struct = tcp_client_sock.recv(WORDS * 3)
         raw_data = struct.unpack(str(WORDS * 3) + 'B', received_data_struct)
         decoded_data = dc.decode_data_from_bytes(raw_data)
         # decoded_data[CHANNELS-1, :] = np.bitwise_and(decoded_data[CHANNELS-1, :].astype(int), 2 ** 17 - 1)
+
         class_id = receive_data_from_acquisition_app(udp_server_sock)
+
         buffer = np.roll(buffer, -SAMPLES, axis=1)
         buffer[:, -SAMPLES:] = decoded_data
 
@@ -98,8 +101,9 @@ def main():
                 print("LABELS LEN {}".format(len(labels)))
                 sec_res = np.zeros(3)
                 sec_samp = 0
-                np.save("calibration_data.npy", data, fix_imports=False)
-                np.save("calibration_labels.npy", np.array(labels), fix_imports=False)
+                np.save("calibration_data.npy", data, allow_pickle=False, fix_imports=False)
+                labels_to_save = np.array(labels)
+                np.save("calibration_labels.npy", labels_to_save, allow_pickle=True, fix_imports=False)
 
 
             # left = True if label == 1 else False
