@@ -13,8 +13,13 @@ class CalibrationTrainingLoop(FitLoop):
         self.included_channels = included_channels
 
     def on_advance_end(self) -> None:
+        ## trainer still uses old data
         self.trainer.train_dataloader.dataset.datasets.dataset.update_dataset()
-
+        train_dataset, val_dataset, test_dataset = self.trainer.train_dataloader.dataset.datasets.dataset.get_subsets()
+        self.trainer.train_dataloader.dataset.datasets = train_dataset
+        self.trainer.train_dataloader.sampler.data_source.indices = train_dataset.indices
+        super().on_advance_end()
+        self.on_run_start()
 
 def main():
     included_classes = [0, 1, 2]
