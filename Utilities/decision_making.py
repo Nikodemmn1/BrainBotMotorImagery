@@ -21,7 +21,7 @@ class DecisionMaker():
         for label in self.priorities:
             if self.decisions[label] == 1:
                 return label
-
+        return None
 
 
 
