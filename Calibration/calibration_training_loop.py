@@ -18,6 +18,8 @@ class CalibrationTrainingLoop(FitLoop):
         train_dataset, val_dataset, test_dataset = self.trainer.train_dataloader.dataset.datasets.dataset.get_subsets()
         self.trainer.train_dataloader.dataset.datasets = train_dataset
         self.trainer.train_dataloader.sampler.data_source.indices = train_dataset.indices
+        self.trainer.val_dataloaders[0].dataset.datasets = val_dataset
+        self.trainer.val_dataloaders[0].sampler.data_source.indices = val_dataset.indices
         super().on_advance_end()
         self.on_run_start()
 

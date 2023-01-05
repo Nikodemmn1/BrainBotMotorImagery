@@ -172,7 +172,7 @@ class FeatureExtractorOneDNet(OneDNet):
         x = torch.flatten(x, 1)
         return x
 
-class CalibrationOneDNet(OneDNet):
+class CalibrationOneDNet(OneDNet):pytorch
     def __init__(self, channel_count, included_classes, l1=1,
                  train_indices=None, val_indices=None, test_indices=None):
         super().__init__(channel_count, included_classes,
