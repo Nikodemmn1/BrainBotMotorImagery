@@ -1,0 +1,18 @@
+jetson@192.168.0.240
+jetson
+cd Documents/jetbot-master/notebooks/collision_avoidance/
+
+
+scp ./move_jetbot.py jetson@192.168.0.240:/home/jetson/Documents/jetbot-master/notebooks/collision_avoidance
+scp -r jetson@192.168.0.240:/home/jetson/Documents/jetbot-master/notebooks/collision_avoidance/images ./images
+scp -r ./images/dataset jetson@192.168.0.240:/home/jetson/Documents/jetbot-master/notebooks/collision_avoidance/dataset
+scp -r ./tf_model jetson@192.168.0.240:/home/jetson/Documents/jetbot-master/notebooks/collision_avoidance
+scp -r ./jetbot jetson@192.168.0.240:/home/jetson/Documents/jetbot-master/notebooks/collision_avoidance/jetbot
+jupyter notebook --no-browser --port=8888 --ip 0.0.0.0
+
+# FIX na błędy z GSTREAMER:
+rm -rf ~/.cache/gstreamer-1.0
+source ~/.bashrc
+export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1
+
+# %pip install timm
