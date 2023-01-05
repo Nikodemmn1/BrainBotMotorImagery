@@ -5,7 +5,9 @@ import pickle
 import Server.server_data_convert as dc
 import numpy as np
 import torch
+import time
 from Server.server_params import *
+from Utilities.decision_making import DecisionMaker
 
 
 def create_sockets():
@@ -53,6 +55,12 @@ def main():
 
     sec_res = np.zeros(3)
     sec_samp = 0
+    time_start = time.time()
+
+    JETBOT_ADDRESS = '192.168.250.149'
+    JETBOT_PORT = 3333
+
+    decision_maker = DecisionMaker(window_length=60, priorities=[2, 0, 1], thresholds=[0.4, 0.4, 0.8])
 
     while True:
         # Decoding the received packet from ActiView
@@ -77,20 +85,13 @@ def main():
             x = x[:, :, 2:, :]
             y = dc.get_classification(x, model)
             out_ind = np.argmax(y.numpy())
-            sec_res[out_ind] += 1
+            decision_maker.add_data(out_ind)
 
-            sec_samp += 1
-            if sec_samp % 16 == 0:
-                time = sec_samp * 0.0625
-                print(f"[{time:.2f}]Max: {np.argmax(sec_res)+1}: [{sec_res[0]}, {sec_res[1]}, {sec_res[2]}]")
-                sec_res = np.zeros(3)
-
-            # left = True if label == 1 else False
-            # forward = True
-            # send_string = '{"left": ' + str(left).lower() + ', "forward": ' + str(forward).lower() + "} "
-            # message_bytes = send_string.encode()
-            # result_to_send = struct.pack("I", seq_num) + message_bytes
-            # udp_server_sock.sendto(result_to_send, (REMOTE_UDP_ADDRESS, REMOTE_UDP_PORT))
+            if time.time() - time_start > 2.0:
+                decision = decision_maker.decide()
+                bytes_to_send = str.encode(decision)
+                udp_server_sock.sendto(bytes_to_send, (JETBOT_ADDRESS, JETBOT_PORT))
+                time_start = time.time()
 
             seq_num += 1
             if seq_num == 2 ^ 32:

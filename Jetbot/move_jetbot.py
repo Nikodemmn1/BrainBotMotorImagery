@@ -26,17 +26,17 @@ frame_count = 3
 min_safe_distance = 500
 COMMANDS = {
     0: 'left',
-    1: 'forward',
-    2: 'right'
+    1: 'right',
+    2: 'forward'
 }
 
 
 class UDPClient:
-    def __init__(self, server_address="192.168.0.195", port=22221, buff_size=1024):
+    def __init__(self, server_address="192.168.0.195", port=22221, in_port=3333, buff_size=1024):
         self.SERVER_ADDRESS_PORT = (server_address, port)
         self.BUFFER_SIZE = buff_size
         self.UDP_CLIENT_SOCKET = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-        self.send_message('gimme command')
+        self.UDP_CLIENT_SOCKET.bind(('localhost', in_port))
 
     def send_message(self, message):
         bytes_to_send = str.encode(message)
@@ -53,6 +53,13 @@ class UDPClient:
         command = COMMANDS[command_index]
         print('RECEIVED COMMAND FROM SERVER', command)
         return command
+
+    def flush_udp(self):
+        self.UDP_CLIENT_SOCKET.setblocking(False)
+        x = 1
+        while x:
+            x = self.UDP_CLIENT_SOCKET.recv(self.BUFFER_SIZE)
+        self.UDP_CLIENT_SOCKET.setblocking(True)
 
 
 class Midas:
@@ -210,9 +217,9 @@ if __name__ == '__main__':
         jetson.update(depth_image)
 
         if i == frame_count:
+            udp_client.flush_udp()
             command = udp_client.receive_command()
             jetson.move(command)
-            udp_client.send_message('gimme next command')
             i = 0
 
     robot.stop()
