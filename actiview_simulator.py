@@ -5,17 +5,17 @@ import matplotlib.pyplot as plt
 from Server.server_params import *
 import socket
 from tqdm import tqdm
+
 LOAD = True
 
-## w celu przetestowania funkcji kalibracyjnej  trzeba przesyłać dane z klasami
+CHANNELS_TO_SEND = CHANNELS
 
 if not LOAD:
     # https://www.biosemi.com/faq/file_format.htm
     CHANNELS_IN_FILE = 17  # with triggers
-    CHANNELS_TO_SEND = 16
     HEADER_LENGTH = 256 * (CHANNELS_IN_FILE + 1)
     SAMPLING_RATE = 2048
-    FILE_PATH = "DataBDF/TrainData/Nikodem/Nikodem_0.bdf"
+    FILE_PATH = "DataBDF/TrainData/Nikodem/Nikodem_12.bdf"
 
     file_bytes = os.stat(FILE_PATH).st_size
     file_bytes_no_head = file_bytes - HEADER_LENGTH

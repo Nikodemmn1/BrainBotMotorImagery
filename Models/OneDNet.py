@@ -172,7 +172,7 @@ class FeatureExtractorOneDNet(OneDNet):
         x = torch.flatten(x, 1)
         return x
 
-class CalibrationOneDNet(OneDNet):pytorch
+class CalibrationOneDNet(OneDNet):
     def __init__(self, channel_count, included_classes, l1=1,
                  train_indices=None, val_indices=None, test_indices=None):
         super().__init__(channel_count, included_classes,
@@ -277,4 +277,3 @@ class CalibrationOneDNet(OneDNet):pytorch
         mmd = (1 / x_len**2) * component1 + (1 / y_len**2) * component2 - (
                     2 / (x_len * y_len)) * component3
         return mmd
-

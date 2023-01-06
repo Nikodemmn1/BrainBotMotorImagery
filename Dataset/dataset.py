@@ -73,6 +73,14 @@ class CalibrationDataset(EEGDataset):
         raw_data, labels = load_calibration_data(calibration_data_path, calibration_labels_path)
         self.prepare_data(raw_data, labels)
 
+        self.train_range = range(self.train_len)
+        self.val_range = range(self.train_len, self.train_len + self.val_len)
+        self.test_range = range(self.train_len + self.val_len, self.train_len + self.val_len + self.test_len)
+
+        self.train_subset = Subset(self, self.train_range)
+        self.val_subset = Subset(self, self.val_range)
+        self.test_subset = Subset(self, self.test_range)
+
     def prepare_data(self, raw_data, labels):
         if self.included_classes is not None:
             conditions_list = [labels == class_id for class_id in self.included_classes]
@@ -109,4 +117,12 @@ class CalibrationDataset(EEGDataset):
         else:
             raw_data, labels = data
         self.prepare_data(raw_data, labels)
+        self.train_range = range(self.train_len)
+        self.val_range = range(self.train_len, self.train_len + self.val_len)
+        self.test_range = range(self.train_len + self.val_len, self.train_len + self.val_len + self.test_len)
+        self.train_subset.indices = self.train_range
+        self.val_subset.indices = self.val_range
+        self.test_subset.indices = self.test_range
 
+    def get_subsets(self):
+        return self.train_subset, self.val_subset, self.test_subset

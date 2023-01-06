@@ -1,11 +1,12 @@
 from SharedParameters.signal_parameters import BIOSEMI_CHANNELS_COUNT, BIOSEMI_FREQ, DATASET_FREQ, BUFFER_LENGTH, \
     OVERLAP, CHANNELS_COUNT_FOR_TESTING
 
-TESTING = False
-if TESTING:
+CALIBRATION = True
+if CALIBRATION:
     CHANNELS = CHANNELS_COUNT_FOR_TESTING
 else:
     CHANNELS = BIOSEMI_CHANNELS_COUNT  # field "Channels sent by TCP" in Actiview
+
 
 SAMPLES = 128  # field "TCP samples/channel" in Actiview
 
