@@ -18,7 +18,7 @@ if not LOAD:
     DATA_PATH = "DataBDF/Nikodem/"
     FILE_PATHS = os.listdir(DATA_PATH)
     samples_list = []
-    for file_path in FILE_PATHS:
+    for file_path in FILE_PATHS[2:3]:
         path = DATA_PATH + file_path
         file_bytes = os.stat(path).st_size
         file_bytes_no_head = file_bytes - HEADER_LENGTH
@@ -38,9 +38,9 @@ if not LOAD:
                     samples[ch, sec * SAMPLING_RATE + sam, :] = data[beg:beg + 3]
         samples_list.append(samples)
     samples_to_save = np.concatenate(samples_list, axis = 1)
-    np.save("testdata_nikodem.npy", samples_to_save)
+    np.save("testdata_nikodem_broken.npy", samples_to_save)
 else:
-    samples = np.load("testdata_nikodem.npy")
+    samples = np.load("testdata_nikodem_broken.npy")
 
 #samples2 = samples[:, :, 0].astype("int32") + samples[:, :, 1].astype("int32") * 256 + samples[:, :, 2].astype(
 #    "int32") * 256 * 256

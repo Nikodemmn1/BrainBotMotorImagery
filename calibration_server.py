@@ -29,11 +29,12 @@ class LabelHolder():
                            np.log2(np.bitwise_and(markers, -markers)).astype('int8') + 1,
                            np.zeros(markers.shape).astype('int8'))
         markers -= 1
+        print(np.unique(markers))
         for i in range(1, 4):
             if i in list(np.unique(markers)):
                 self.label = i - 1
         if 0 in list(np.unique(markers)):
-                self.label = None
+            self.label = None
 def create_sockets():
     # TCP Socket for receiving data from Actiview
     tcp_client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -111,11 +112,7 @@ def main():
     while True:
         # Decoding the received packet from ActiView
         received_data_struct = tcp_client_sock.recv(WORDS * 3)
-        try:
-            raw_data = struct.unpack(str(WORDS * 3) + 'B', received_data_struct)
-        except:
-            print("Couldnt unpack data.")
-            continue
+        raw_data = struct.unpack(str(WORDS * 3) + 'B', received_data_struct)
         decoded_data, triggers = cd_converter.decode_data_from_bytes(raw_data)
         # decoded_data[CHANNELS-1, :] = np.bitwise_and(decoded_data[CHANNELS-1, :].astype(int), 2 ** 17 - 1)
         #class_id = receive_data_from_acquisition_app(udp_acquisition_sock)
@@ -176,6 +173,8 @@ def main():
             seq_num += 1
             if seq_num == 2 ^ 32:
                 seq_num = 0
+        else:
+            print("BREAK")
 
 
 if __name__ == '__main__':

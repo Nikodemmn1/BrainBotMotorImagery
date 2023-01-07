@@ -71,8 +71,8 @@ def main():
     included_classes = [0, 1, 2]
     # included_channels = range(16)
     included_channels = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-    full_dataset = CalibrationDataset("../CalibrationData/calibration_data.npy",
-                                      "../CalibrationData/calibration_labels.npy",
+    full_dataset = CalibrationDataset("../CalibrationData/calibration_data_nikodem.npy",
+                                      "../CalibrationData/calibration_labels_nikodem.npy",
                                       included_classes)
     train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
     train_data = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4, drop_last=True)
@@ -96,7 +96,7 @@ def main():
                                                           save_top_k=3,
                                                           mode='min')],
                       check_val_every_n_epoch=1, benchmark=True, log_every_n_steps=40)
-    trainer.fit_loop = CalibrationTrainingLoop(included_classes=included_classes, included_channels=included_channels)
+    #trainer.fit_loop = CalibrationTrainingLoop(included_classes=included_classes, included_channels=included_channels)
     trainer.fit(model, train_data, val_data)
 
     trainer.test(model, test_data)
