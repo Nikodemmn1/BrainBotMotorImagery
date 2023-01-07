@@ -92,7 +92,7 @@ def main():
                                                           save_last=True,
                                                           save_top_k=3,
                                                           mode='min')],
-                      check_val_every_n_epoch=1, benchmark=True)
+                      check_val_every_n_epoch=1, benchmark=True, log_every_n_steps=40)
     trainer.fit_loop = CalibrationTrainingLoop(included_classes=included_classes, included_channels=included_channels)
     trainer.fit(model, train_data, val_data)
 
