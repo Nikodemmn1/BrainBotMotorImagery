@@ -9,18 +9,14 @@ def main():
     included_classes = [0, 1, 2]
     included_channels = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     # included_channels = range(16)
-    # full_dataset = EEGDataset("./DataMerged/DataMerged_train.npy",
-    #                           "./DataMerged/DataMerged_val.npy",
-    #                           "./DataMerged/DataMerged_test.npy",
-    #                           included_classes, included_channels)
-    full_dataset = EEGDataset("./DataBDF/Out/Out_train.npy",
-                              "./DataBDF/Out/Out_val.npy",
-                              "./DataBDF/Out/Out_test.npy",
+    full_dataset = EEGDataset("./DataBDF/OutTraining/Piotr/Piotr_train.npy",
+                              "./DataBDF/OutTraining/Piotr/Piotr_val.npy",
+                              "./DataBDF/OutTesting/Piotr/Piotr_test.npy",
                               included_classes, included_channels)
     train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
-    train_data = DataLoader(train_dataset, batch_size=512, shuffle=True, num_workers=12)
+    train_data = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4)
     val_data = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=0)
-    test_data = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0)
+    test_data = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=0)
 
     model = OneDNet(len(included_channels), included_classes, train_dataset.indices,
                     val_dataset.indices, test_dataset.indices)
@@ -30,7 +26,7 @@ def main():
     #                                     checkpoint_path="./lightning_logs/version_118/checkpoints/epoch=59-step=17640.ckpt")
 
     trainer = Trainer(gpus=-1, callbacks=[TQDMProgressBar(refresh_rate=5),
-                                          StochasticWeightAveraging(),
+                                          StochasticWeightAveraging(swa_lrs=0.001),
                                           ModelCheckpoint(save_weights_only=False,
                                                           monitor="Val loss",
                                                           save_last=True,

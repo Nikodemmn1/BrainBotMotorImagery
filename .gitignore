@@ -11,6 +11,7 @@
 #Plot Data:
 *plots
 *logs
+EDA/charts
 
 #Pickle
 *.pkl
@@ -20,6 +21,7 @@
 #BrainStudy:
 #Put your data here:
 Data/*
-
+DataBDF/*
+DataMerged/*
 #Runs (Training Log):
 Models/checkpoints/*

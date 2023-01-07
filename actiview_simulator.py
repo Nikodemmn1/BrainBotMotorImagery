@@ -4,15 +4,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 from Server.server_params import *
 import socket
+from tqdm import tqdm
 
-LOAD = 0
+LOAD = True
+
+CHANNELS_TO_SEND = CHANNELS
 
 if not LOAD:
     # https://www.biosemi.com/faq/file_format.htm
     CHANNELS_IN_FILE = 17  # with triggers
     HEADER_LENGTH = 256 * (CHANNELS_IN_FILE + 1)
     SAMPLING_RATE = 2048
-    FILE_PATH = "./testdata.bdf"
+    FILE_PATH = "DataBDF/TrainData/Nikodem/Nikodem_12.bdf"
 
     file_bytes = os.stat(FILE_PATH).st_size
     file_bytes_no_head = file_bytes - HEADER_LENGTH
@@ -23,15 +26,15 @@ if not LOAD:
         data = f.read()
     data = np.frombuffer(data[HEADER_LENGTH:], dtype='<u1')
 
-    samples = np.ndarray((CHANNELS_IN_FILE - 1, SAMPLING_RATE * channel_sections_count, 3), dtype='<u1')
+    samples = np.ndarray((CHANNELS_TO_SEND, SAMPLING_RATE * channel_sections_count, 3), dtype='<u1')
 
-    for sec in range(channel_sections_count):
-        for ch in range(CHANNELS_IN_FILE - 1):
+    for sec in tqdm(range(channel_sections_count)):
+        for ch in range(CHANNELS_TO_SEND):
             for sam in range(SAMPLING_RATE):
                 beg = sec * CHANNELS_IN_FILE * SAMPLING_RATE * 3 + ch * SAMPLING_RATE * 3 + sam * 3
                 samples[ch, sec * SAMPLING_RATE + sam, :] = data[beg:beg + 3]
 
-    np.save("testdata", samples)
+    np.save("testdata.npy", samples)
 else:
     samples = np.load("testdata.npy")
 
@@ -43,8 +46,8 @@ samples = np.transpose(samples, (1, 0, 2)).flatten()
 packets_data = np.reshape(samples, (-1, WORDS * 3))
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.bind((TCP_AV_ADDRESS, TCP_AV_PORT))
-sock.listen()
+sock.bind(("", TCP_AV_PORT))
+sock.listen(0)
 conn, addr = sock.accept()
 
 with conn:
