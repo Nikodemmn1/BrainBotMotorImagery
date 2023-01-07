@@ -8,17 +8,17 @@ def decode_data_from_bytes(raw_data):
     raw_data_array_base = np.array(raw_data)
     raw_data_array_base = raw_data_array_base.reshape((WORDS, 3))
     raw_data_array = raw_data_array_base.astype("int32")
-    raw_data_array = ((raw_data_array[:, 0]) +
-                      (raw_data_array[:, 1] << 8) +
-                      (raw_data_array[:, 2] << 16))
+    raw_data_array = raw_data_array[:, 0].astype("int32") + \
+                     raw_data_array[:, 1].astype("int32") * 256 + \
+                     raw_data_array[:, 2].astype("int32") * 256 * 256
     raw_data_array[raw_data_array >= (1 << 23)] -= (1 << 24)
 
-    for j in range(CHANNELS-1):
+    for j in range(CHANNELS - 1):
         for i in range(SAMPLES):
-            data_struct[j, i] = raw_data_array[i * CHANNELS + j].astype('float64')
-            #data_struct[j, i] *= CAL
-            #data_struct[j, i] += OFFSET
-            #data_struct[j, i] *= UNIT
+            data_struct[j, i] = raw_data_array[i * CHANNELS + j].astype('float32')
+
+    # setting reference
+    data_struct -= 0.55 * (data_struct[6, :] + data_struct[8, :])
 
     for i in range(SAMPLES):
         triggers[i] = raw_data_array_base[i * CHANNELS + CHANNELS - 1]

@@ -8,6 +8,7 @@ from pytorch_lightning.trainer.supporters import CombinedLoader
 import logging
 import os
 from typing import Any, Optional, Type
+import torch
 
 import pytorch_lightning as pl
 from pytorch_lightning.accelerators import CUDAAccelerator
@@ -70,17 +71,19 @@ def main():
     included_classes = [0, 1, 2]
     # included_channels = range(16)
     included_channels = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-    full_dataset = CalibrationDataset("../calibration_data.npy", "../calibration_labels.npy",
-                              included_classes)
+    full_dataset = CalibrationDataset("../CalibrationData/calibration_data.npy",
+                                      "../CalibrationData/calibration_labels.npy",
+                                      included_classes)
     train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
-    train_data = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=0, drop_last=True)
+    train_data = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4, drop_last=True)
     val_data = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=0, drop_last=True)
     test_data = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=0)
 
     if load_from_checkpoint:
-        model = OneDNet.load_from_checkpoint(channel_count=len(included_channels),
-                                             included_classes=included_classes,
-                                             checkpoint_path="base_checkpoint.ckpt")
+        # model = OneDNet.load_from_checkpoint(channel_count=len(included_channels),
+        #                                      included_classes=included_classes,
+        #                                      checkpoint_path="../model.pt")
+        model = torch.load("../model.pt")
     else:
         model = OneDNet(len(included_channels), included_classes, train_dataset.indices,
                         val_dataset.indices, test_dataset.indices)

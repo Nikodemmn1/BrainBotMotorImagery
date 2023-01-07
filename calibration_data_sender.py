@@ -21,8 +21,8 @@ def main():
     while True:
         counter += 1
         print("Saving data..")
-        np.save("calibration_data.npy", data[:16*counter])
-        np.save("calibration_labels.npy", labels[:16*counter])
+        np.save("CalibrationData/calibration_data_nikodem.npy", data[:16 * counter])
+        np.save("CalibrationData/calibration_labels_nikodem.npy", labels[:16 * counter])
         time.sleep(SLEEP_TIME)
 
 if __name__ == "__main__":

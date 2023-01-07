@@ -15,28 +15,32 @@ if not LOAD:
     CHANNELS_IN_FILE = 17  # with triggers
     HEADER_LENGTH = 256 * (CHANNELS_IN_FILE + 1)
     SAMPLING_RATE = 2048
-    FILE_PATH = "DataBDF/TrainData/Nikodem/Nikodem_12.bdf"
+    DATA_PATH = "DataBDF/Nikodem/"
+    FILE_PATHS = os.listdir(DATA_PATH)
+    samples_list = []
+    for file_path in FILE_PATHS:
+        path = DATA_PATH + file_path
+        file_bytes = os.stat(path).st_size
+        file_bytes_no_head = file_bytes - HEADER_LENGTH
 
-    file_bytes = os.stat(FILE_PATH).st_size
-    file_bytes_no_head = file_bytes - HEADER_LENGTH
+        channel_sections_count = file_bytes_no_head // (CHANNELS_IN_FILE * SAMPLING_RATE * 3)
 
-    channel_sections_count = file_bytes_no_head // (CHANNELS_IN_FILE * SAMPLING_RATE * 3)
+        with open(path, 'rb') as f:
+            data = f.read()
+        data = np.frombuffer(data[HEADER_LENGTH:], dtype='<u1')
 
-    with open(FILE_PATH, 'rb') as f:
-        data = f.read()
-    data = np.frombuffer(data[HEADER_LENGTH:], dtype='<u1')
+        samples = np.ndarray((CHANNELS_TO_SEND, SAMPLING_RATE * channel_sections_count, 3), dtype='<u1')
 
-    samples = np.ndarray((CHANNELS_TO_SEND, SAMPLING_RATE * channel_sections_count, 3), dtype='<u1')
-
-    for sec in tqdm(range(channel_sections_count)):
-        for ch in range(CHANNELS_TO_SEND):
-            for sam in range(SAMPLING_RATE):
-                beg = sec * CHANNELS_IN_FILE * SAMPLING_RATE * 3 + ch * SAMPLING_RATE * 3 + sam * 3
-                samples[ch, sec * SAMPLING_RATE + sam, :] = data[beg:beg + 3]
-
-    np.save("testdata.npy", samples)
+        for sec in tqdm(range(channel_sections_count)):
+            for ch in range(CHANNELS_TO_SEND):
+                for sam in range(SAMPLING_RATE):
+                    beg = sec * CHANNELS_IN_FILE * SAMPLING_RATE * 3 + ch * SAMPLING_RATE * 3 + sam * 3
+                    samples[ch, sec * SAMPLING_RATE + sam, :] = data[beg:beg + 3]
+        samples_list.append(samples)
+    samples_to_save = np.concatenate(samples_list, axis = 1)
+    np.save("testdata_nikodem.npy", samples_to_save)
 else:
-    samples = np.load("testdata.npy")
+    samples = np.load("testdata_nikodem.npy")
 
 #samples2 = samples[:, :, 0].astype("int32") + samples[:, :, 1].astype("int32") * 256 + samples[:, :, 2].astype(
 #    "int32") * 256 * 256

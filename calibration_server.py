@@ -39,7 +39,7 @@ def create_sockets():
     tcp_client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     # UDP Socket for communication with acquisition.py
-    udp_acquisition_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    #udp_acquisition_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udp_dashboard_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     tcp_client_sock.bind(("localhost", TCP_LOCAL_PORT))
@@ -51,7 +51,7 @@ def create_sockets():
     udp_dashboard_sock.bind((UDP_CALIBRATION_SERVER_IP, UDP_CALIBRATION_SERVER_PORT))
     udp_dashboard_sock.connect((UDP_DASHBOARD_IP, UDP_DASHBOARD_PORT))
 
-    return tcp_client_sock, udp_acquisition_sock, udp_dashboard_sock
+    return tcp_client_sock,  udp_dashboard_sock
 
 
 def load_mean_std():
@@ -89,10 +89,12 @@ def main():
     # Sequence number of the last sent UDP packet
     seq_num = random.randint(0, 2 ^ 32 - 1)
 
-    tcp_client_sock, udp_acquisition_sock, udp_dashboard_sock = create_sockets()
+    tcp_client_sock, udp_dashboard_sock = create_sockets()
 
     buffer = np.zeros((CHANNELS - 1, SERVER_BUFFER_LEN))
     buffer_filled = 0
+
+    buffer_mean_dc = np.zeros((CHANNELS - 1, MEAN_PERIOD_LEN))
 
     model = load_model()
     model.eval()
@@ -100,7 +102,7 @@ def main():
 
     sec_res = np.zeros(3)
     sec_samp = 0
-    data = np.empty([1, 1, len(CHANNELS_USED), 200]) # shape = (None, 1, , len(CHANNELS_USED) + 1, 200)
+    data = np.empty([1, 1, len(CHANNELS_USED), 107]) # shape = (None, 1, , len(CHANNELS_USED) + 1, 200)
     labels = []
     frames_saved = 0
     t1 = 0
@@ -109,7 +111,11 @@ def main():
     while True:
         # Decoding the received packet from ActiView
         received_data_struct = tcp_client_sock.recv(WORDS * 3)
-        raw_data = struct.unpack(str(WORDS * 3) + 'B', received_data_struct)
+        try:
+            raw_data = struct.unpack(str(WORDS * 3) + 'B', received_data_struct)
+        except:
+            print("Couldnt unpack data.")
+            continue
         decoded_data, triggers = cd_converter.decode_data_from_bytes(raw_data)
         # decoded_data[CHANNELS-1, :] = np.bitwise_and(decoded_data[CHANNELS-1, :].astype(int), 2 ** 17 - 1)
         #class_id = receive_data_from_acquisition_app(udp_acquisition_sock)
@@ -118,12 +124,17 @@ def main():
             buffer = np.roll(buffer, -SAMPLES, axis=1)
             buffer[:, -SAMPLES:] = decoded_data
 
+            buffer_mean_dc = np.roll(buffer_mean_dc, -SAMPLES, axis=1)
+            buffer_mean_dc[:, -SAMPLES:] = decoded_data
+
             if buffer_filled + SAMPLES < SERVER_BUFFER_LEN:
                 buffer_filled += SAMPLES
                 sec_samp += 1
             else:
-                x = dc.prepare_data_for_classification(buffer, mean_std["mean"], mean_std["std"])
-                x = x[:, :, CHANNELS_USED, -200:] # data frame length with decimation 40 is 200 so we take last 200 samples
+                dc_means = buffer_mean_dc.mean(axis=1)
+                buffer_no_dc = dc.remove_dc_offset(buffer, dc_means)
+                x = dc.prepare_data_for_classification(buffer_no_dc, mean_std["mean"], mean_std["std"])
+                x = x[:, :, CHANNELS_USED, :]
                 y = dc.get_classification(x, model)
                 out_ind = np.argmax(y.numpy())
                 sec_res[out_ind] += 1
@@ -138,17 +149,18 @@ def main():
                 frames_saved += 1
 
                 sec_samp += 1
-                if sec_samp >= 16:
-                    #print(label_holder.labell)
+                if sec_samp % 16 == 0:
+                    print(label_holder.label)
                     print("16 samples collection time:", time.time()-t1)
-                    print(f"Max: {np.argmax(sec_res) + 1}: [{sec_res[0]}, {sec_res[1]}, {sec_res[2]}]")
+                    server_time = sec_samp * 0.0625
+                    print(f"[{server_time:.2f}]Max: {np.argmax(sec_res) + 1}: [{sec_res[0]}, {sec_res[1]}, {sec_res[2]}]")
                     print("DATA SHAPE {}".format(data.shape))
                     print("LABELS LEN {}".format(len(labels)))
                     sec_res = np.zeros(3)
-                    sec_samp = 0
-                    np.save("calibration_data.npy", data, allow_pickle=False, fix_imports=False)
+                    #sec_samp = 0
+                    np.save("CalibrationData/calibration_data.npy", data, allow_pickle=False, fix_imports=False)
                     labels_to_save = np.array(labels)
-                    np.save("calibration_labels.npy", labels_to_save, allow_pickle=True, fix_imports=False)
+                    np.save("CalibrationData/calibration_labels.npy", labels_to_save, allow_pickle=True, fix_imports=False)
                     t1 = time.time()
             # if time.time() - model_update_timer > 1/MODEL_UPDATE_FREQ:
             #     model = update_to_checkpoint()
