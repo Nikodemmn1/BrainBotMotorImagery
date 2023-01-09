@@ -18,7 +18,7 @@ def main():
     test_data = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0)
     model = OneDNet.load_from_checkpoint(channel_count=len(included_channels),
                                          included_classes=included_classes,
-                                         checkpoint_path="./Calibration/lightning_logs/version_74/checkpoints/epoch=18-step=2394.ckpt")
+                                         checkpoint_path="./Calibration/lightning_logs/version_78/checkpoints/epoch=459-step=19159.ckpt")
     trainer = Trainer(gpus=-1)
     trainer.test(model, test_data)
 

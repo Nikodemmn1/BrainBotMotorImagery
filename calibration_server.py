@@ -35,6 +35,7 @@ class LabelHolder():
                 self.label = i - 1
         if 0 in list(np.unique(markers)):
             self.label = None
+
 def create_sockets():
     # TCP Socket for receiving data from Actiview
     tcp_client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
