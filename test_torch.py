@@ -9,7 +9,7 @@ def main():
     #test_merger = TestMerger("./DataTest/", "./DataTest/", 'Out')
     #test_merger.merge()
     included_classes = [0, 1, 2]
-    included_channels = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    included_channels = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     full_dataset = EEGDataset("./DataBDF/Out/Out_test.npy",
                               "./DataBDF/Out/Out_test.npy",
                               "./DataBDF/Out/Out_test.npy",
