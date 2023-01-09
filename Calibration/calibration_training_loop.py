@@ -1,12 +1,13 @@
 from Dataset.dataset import CalibrationDataset
 from torch.utils.data import DataLoader
-from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import TQDMProgressBar, StochasticWeightAveraging, ModelCheckpoint
+from pytorch_lightning import Trainer, Callback
+from pytorch_lightning.callbacks import TQDMProgressBar, StochasticWeightAveraging, ModelCheckpoint, LambdaCallback
 from Models.OneDNet import OneDNet
 from pytorch_lightning.loops import FitLoop
 from pytorch_lightning.trainer.supporters import CombinedLoader
 import logging
 import os
+import warnings
 from typing import Any, Optional, Type
 import torch
 
@@ -29,6 +30,8 @@ from pytorch_lightning.utilities.fetching import (
 from pytorch_lightning.utilities.model_helpers import is_overridden
 from pytorch_lightning.utilities.rank_zero import rank_zero_debug, rank_zero_info, rank_zero_warn
 from pytorch_lightning.utilities.signature_utils import is_param_in_hook_signature
+
+full_dataset, train_dataset, val_dataset, test_dataset = None, None, None, None
 
 class CalibrationTrainingLoop(FitLoop):
     def __init__(self, included_classes=None, included_channels=None):
@@ -66,17 +69,24 @@ class CalibrationTrainingLoop(FitLoop):
         # data_fetcher_cls = self._select_data_fetcher(self.trainer)
         # self._data_fetcher = data_fetcher_cls(prefetch_batches=self.prefetch_batches)
 
+class UpdateCallback(Callback):
+    def on_train_epoch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        global full_dataset, train_dataset, val_dataset, test_dataset
+        full_dataset.update_dataset()
+        train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
+
 def main():
     load_from_checkpoint = False
     included_classes = [0, 1, 2]
     # included_channels = range(16)
     included_channels = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-    full_dataset = CalibrationDataset("../CalibrationData/calibration_data_nikodem.npy",
-                                      "../CalibrationData/calibration_labels_nikodem.npy",
+    global full_dataset, train_dataset, val_dataset, test_dataset
+    full_dataset = CalibrationDataset("../CalibrationData/calibration_data.npy",
+                                      "../CalibrationData/calibration_labels.npy",
                                       included_classes)
     train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
     train_data = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4, drop_last=True)
-    val_data = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=0, drop_last=True)
+    val_data = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=0)
     test_data = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=0)
 
     if load_from_checkpoint:
@@ -94,8 +104,9 @@ def main():
                                                           monitor="Val loss",
                                                           save_last=True,
                                                           save_top_k=3,
-                                                          mode='min')],
-                      check_val_every_n_epoch=1, benchmark=True, log_every_n_steps=40)
+                                                          mode='min'),
+                                          UpdateCallback()],
+                      check_val_every_n_epoch=1, benchmark=True, max_epochs=100000000, reload_dataloaders_every_n_epochs=1)
     #trainer.fit_loop = CalibrationTrainingLoop(included_classes=included_classes, included_channels=included_channels)
     trainer.fit(model, train_data, val_data)
 
