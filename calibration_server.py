@@ -3,6 +3,7 @@ import time
 import struct
 import random
 import pickle
+import json
 import Server.server_data_convert as dc
 import numpy as np
 import torch
@@ -143,7 +144,8 @@ def main():
             else:
                 dc_means = buffer_mean_dc.mean(axis=1)
                 buffer_no_dc = dc.remove_dc_offset(buffer, dc_means)
-                x = dc.prepare_data_for_classification(buffer_no_dc, mean_std["mean"], mean_std["std"])
+                # TODO use StreamingMeanStd
+                x = dc.prepare_data_for_classification(buffer_no_dc, mean_std['mean'], mean_std['std'])
                 x = x[:, :, CHANNELS_USED, :]
                 y = dc.get_classification(x, model)
                 out_ind = np.argmax(y.numpy())
@@ -152,7 +154,6 @@ def main():
                     send_data_to_dashboard(out_ind, label_holder.label, udp_dashboard_sock)
 
                 if frames_saved == 0:
-                    StreamingMeanStd(x)
                     data[0] = x
                 else:
                     data = np.append(data, x, axis=0)
@@ -172,11 +173,16 @@ def main():
                     np.save("CalibrationData/calibration_data.npy", data, allow_pickle=False, fix_imports=False)
                     labels_to_save = np.array(labels)
                     np.save("CalibrationData/calibration_labels.npy", labels_to_save, allow_pickle=True, fix_imports=False)
+                    with open('streaming_mean_std.pkl', 'wb') as f:
+                        to_save = {'mean': list(streaming_mean_std.mean), 'std': list(streaming_mean_std.std)}
+                        pickle.dump(to_save, f)
                     t1 = time.time()
             if len(labels) > 500 and time.time() - model_update_timer > 1/MODEL_UPDATE_FREQ:
                 model = update_to_checkpoint()
                 print("Model RELOADED!")
                 model_update_timer = time.time()
+                print("Mean:", streaming_mean_std.mean)
+                print("Std:", streaming_mean_std.std)
 
 
             # left = True if label == 1 else False
