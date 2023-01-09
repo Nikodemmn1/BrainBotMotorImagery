@@ -12,6 +12,7 @@ from Calibration.calibration_system_params import *
 import Calibration.calibration_server_data_convert as cd_converter
 from Models.OneDNet import OneDNet
 import os
+from Utilities.calibration_funcs import StreamingMeanStd
 
 CHANNELS_USED = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 CLASSES_INCLUDED = [0, 1, 2]
@@ -151,6 +152,7 @@ def main():
                     send_data_to_dashboard(out_ind, label_holder.label, udp_dashboard_sock)
 
                 if frames_saved == 0:
+                    StreamingMeanStd(x)
                     data[0] = x
                 else:
                     data = np.append(data, x, axis=0)
