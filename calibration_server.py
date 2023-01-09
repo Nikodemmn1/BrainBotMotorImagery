@@ -12,10 +12,12 @@ from Calibration.calibration_system_params import *
 import Calibration.calibration_server_data_convert as cd_converter
 from Models.OneDNet import OneDNet
 import os
+
 CHANNELS_USED = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 CLASSES_INCLUDED = [0, 1, 2]
 MODEL_UPDATE_FREQ = 0.1
 CHECKPOINTS_PATH = "Calibration/lightning_logs/"
+
 class LabelHolder():
     def __init__(self):
         self.label = None
@@ -23,13 +25,12 @@ class LabelHolder():
         markers = self.find_markers_in_triggers(triggers)
         return markers
     def find_markers_in_triggers(self, triggers):
-
         markers = triggers[:, 1]
         markers = np.where(markers > 0,
                            np.log2(np.bitwise_and(markers, -markers)).astype('int8') + 1,
                            np.zeros(markers.shape).astype('int8'))
         markers -= 1
-        print(np.unique(markers))
+        #print(np.unique(markers))
         for i in range(1, 4):
             if i in list(np.unique(markers)):
                 self.label = i - 1
@@ -79,8 +80,12 @@ def send_data_to_dashboard(pred, ground_truth, udp_socket):
     udp_socket.sendto(pickled_packet, (UDP_DASHBOARD_IP, UDP_DASHBOARD_PORT))
 
 def update_to_checkpoint():
-    dirs = os.listdir(CHECKPOINTS_PATH)
-    path = CHECKPOINTS_PATH + dirs[-1] + '/checkpoints/last.ckpt'
+    dirs = sorted(os.listdir(CHECKPOINTS_PATH))
+    dirs.sort(key=len, reverse=False)
+    path = CHECKPOINTS_PATH + dirs[-1] + '/checkpoints/'
+    files = sorted(os.listdir(path))
+    files.sort(key=len, reverse=False)
+    path += files[-2]
     model = OneDNet.load_from_checkpoint(channel_count=len(CHANNELS_USED),
                                          included_classes=CLASSES_INCLUDED,
                                          checkpoint_path=path)
@@ -109,20 +114,26 @@ def main():
     t1 = 0
     label_holder = LabelHolder()
     model_update_timer = time.time()
+    received_data_struct_buffer = bytearray()
     while True:
         # Decoding the received packet from ActiView
-        received_data_struct = tcp_client_sock.recv(WORDS * 3)
+        received_bytes = 0
+        while received_bytes < WORDS * 3:
+            received_data_struct_partial = tcp_client_sock.recv(WORDS * 3)
+            received_bytes += len(received_data_struct_partial)
+            received_data_struct_buffer += received_data_struct_partial
+        received_data_struct = bytes(received_data_struct_buffer[:WORDS*3])
+        received_data_struct_buffer = received_data_struct_buffer[WORDS*3:]
         raw_data = struct.unpack(str(WORDS * 3) + 'B', received_data_struct)
         decoded_data, triggers = cd_converter.decode_data_from_bytes(raw_data)
         # decoded_data[CHANNELS-1, :] = np.bitwise_and(decoded_data[CHANNELS-1, :].astype(int), 2 ** 17 - 1)
         #class_id = receive_data_from_acquisition_app(udp_acquisition_sock)
         label_holder.update_label(triggers)
+        buffer_mean_dc = np.roll(buffer_mean_dc, -SAMPLES, axis=1)
+        buffer_mean_dc[:, -SAMPLES:] = decoded_data
         if label_holder.label is not None:
             buffer = np.roll(buffer, -SAMPLES, axis=1)
             buffer[:, -SAMPLES:] = decoded_data
-
-            buffer_mean_dc = np.roll(buffer_mean_dc, -SAMPLES, axis=1)
-            buffer_mean_dc[:, -SAMPLES:] = decoded_data
 
             if buffer_filled + SAMPLES < SERVER_BUFFER_LEN:
                 buffer_filled += SAMPLES
@@ -159,8 +170,10 @@ def main():
                     labels_to_save = np.array(labels)
                     np.save("CalibrationData/calibration_labels.npy", labels_to_save, allow_pickle=True, fix_imports=False)
                     t1 = time.time()
-            # if time.time() - model_update_timer > 1/MODEL_UPDATE_FREQ:
-            #     model = update_to_checkpoint()
+            if len(labels) > 500 and time.time() - model_update_timer > 1/MODEL_UPDATE_FREQ:
+                model = update_to_checkpoint()
+                print("Model RELOADED!")
+                model_update_timer = time.time()
 
 
             # left = True if label == 1 else False
@@ -174,7 +187,10 @@ def main():
             if seq_num == 2 ^ 32:
                 seq_num = 0
         else:
-            print("BREAK")
+            if buffer_filled > 0:
+                buffer = np.zeros((CHANNELS - 1, SERVER_BUFFER_LEN))
+                buffer_filled = 0
+                print("BREAK")
 
 
 if __name__ == '__main__':
