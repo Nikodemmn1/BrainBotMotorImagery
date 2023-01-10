@@ -84,7 +84,7 @@ def prepare_data_for_classification(data, mean, std):
     data_decimated = np.apply_along_axis(decimate, 1, data_filtered, int(DECIMATION_FACTOR), ftype='fir')
 
     data_decimated -= data_decimated.min(axis=1)[:, None]
-    data_decimated += 5e-10
+    data_decimated += math.e ** -2
     data_decimated = np.log(data_decimated)
 
     # data_psd = np.apply_along_axis(calculate_psd_welch_channel, 1, data_scaled)

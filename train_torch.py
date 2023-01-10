@@ -25,13 +25,13 @@ def main():
     #                                     checkpoint_path="./lightning_logs/version_118/checkpoints/epoch=59-step=17640.ckpt")
 
     trainer = Trainer(gpus=-1, callbacks=[TQDMProgressBar(refresh_rate=5),
-                                          StochasticWeightAveraging(),
+                                          StochasticWeightAveraging(swa_lrs=1e-2),
                                           ModelCheckpoint(save_weights_only=False,
                                                           monitor="Val loss",
                                                           save_last=True,
                                                           save_top_k=3,
                                                           mode='min')],
-                      check_val_every_n_epoch=1, benchmark=True)
+                      check_val_every_n_epoch=5, benchmark=True)
 
     trainer.fit(model, train_data, val_data)
 
