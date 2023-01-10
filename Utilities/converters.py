@@ -115,7 +115,7 @@ class EEGDataConverter:
                                 buffer *= 0.03125
                                 buffer = self._filter(buffer)
                                 buffer -= buffer.min(axis=1)[:, None]
-                                buffer += 5e-10
+                                buffer += math.e ** -2
                                 buffer = np.log(buffer)
                                 self.converted_data[dset].append(buffer)
                                 self.labels[dset].append(label)
