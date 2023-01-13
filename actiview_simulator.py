@@ -15,10 +15,10 @@ if not LOAD:
     CHANNELS_IN_FILE = 17  # with triggers
     HEADER_LENGTH = 256 * (CHANNELS_IN_FILE + 1)
     SAMPLING_RATE = 2048
-    DATA_PATH = "DataBDF/Nikodem/"
+    DATA_PATH = "DataBDF/TrainData/Kuba/"
     FILE_PATHS = os.listdir(DATA_PATH)
     samples_list = []
-    for file_path in FILE_PATHS[2:3]:
+    for file_path in FILE_PATHS:
         path = DATA_PATH + file_path
         file_bytes = os.stat(path).st_size
         file_bytes_no_head = file_bytes - HEADER_LENGTH
@@ -38,9 +38,9 @@ if not LOAD:
                     samples[ch, sec * SAMPLING_RATE + sam, :] = data[beg:beg + 3]
         samples_list.append(samples)
     samples_to_save = np.concatenate(samples_list, axis = 1)
-    np.save("testdata_nikodem_broken.npy", samples_to_save)
+    np.save("testdata_kuba.npy", samples_to_save)
 else:
-    samples = np.load("testdata_nikodem_broken.npy")
+    samples = np.load("testdata_kuba.npy")
 
 #samples2 = samples[:, :, 0].astype("int32") + samples[:, :, 1].astype("int32") * 256 + samples[:, :, 2].astype(
 #    "int32") * 256 * 256

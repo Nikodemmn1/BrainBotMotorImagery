@@ -1,4 +1,7 @@
 import numpy as np
+from scipy.signal import welch, decimate
+from Server.server_data_convert import _filter
+from Server.server_params import *
 def load_calibration_data(data_file, labels_file):
     try:
         raw_data = np.load(data_file).astype(np.float32)
@@ -9,6 +12,26 @@ def load_calibration_data(data_file, labels_file):
         print("Another script is using the files... possibly calibration_server.py saving data.")
         return None
 
+def convert_packet(packet):
+    # packet_mean = np.mean(packet, axis=1)
+    # packet -= packet_mean[:, None]
+    #packet *= 0.03125
+    # data = data[:CHANNELS-1, :]
+    data_filtered = _filter(packet)
+    # data_filtered = data_filtered[:, (data_filtered.shape[1] - 800 * DECIMATION_FACTOR):]
+
+    data_decimated = np.apply_along_axis(decimate, 1, data_filtered, int(DECIMATION_FACTOR), ftype='fir')
+
+    data_decimated -= data_decimated.min(axis=1)[:, None]
+    data_decimated += 5e-10
+    data_decimated = np.log(data_decimated)
+
+    # data_psd = np.apply_along_axis(calculate_psd_welch_channel, 1, data_scaled)
+    # data_psd[:, 0] = np.zeros(16)
+
+    data_reshaped = np.reshape(data_decimated, (1, 1, data_decimated.shape[0], data_decimated.shape[1]))
+
+    return data_reshaped
 class StreamingMeanStd():
     def __init__(self, x0):
         if not isinstance(x0, np.ndarray):

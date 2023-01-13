@@ -76,13 +76,13 @@ class UpdateCallback(Callback):
         train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
 
 def main():
-    load_from_checkpoint = False
+    load_from_checkpoint = True
     included_classes = [0, 1, 2]
     # included_channels = range(16)
     included_channels = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     global full_dataset, train_dataset, val_dataset, test_dataset
-    full_dataset = CalibrationDataset("../CalibrationData/calibration_data.npy",
-                                      "../CalibrationData/calibration_labels.npy",
+    full_dataset = CalibrationDataset("../CalibrationData/calibration_data_kuba.npy",
+                                      "../CalibrationData/calibration_labels_kuba.npy",
                                       included_classes)
     train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
     train_data = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4, drop_last=True)
@@ -93,7 +93,7 @@ def main():
         # model = OneDNet.load_from_checkpoint(channel_count=len(included_channels),
         #                                      included_classes=included_classes,
         #                                      checkpoint_path="../model.pt")
-        model = torch.load("../model.pt")
+        model = torch.load("../model_nikodem.pt")
     else:
         model = OneDNet(len(included_channels), included_classes, train_dataset.indices,
                         val_dataset.indices, test_dataset.indices)

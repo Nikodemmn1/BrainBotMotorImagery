@@ -104,7 +104,7 @@ class CalibrationDataset(EEGDataset):
         test_data = raw_data[test_indices]
 
         self.data = np.concatenate([train_data, val_data, test_data], axis=0)
-        self.labels = labels
+        self.labels = labels[indices_pool]
 
         self.train_len = train_data.shape[0]
         self.val_len = val_data.shape[0]

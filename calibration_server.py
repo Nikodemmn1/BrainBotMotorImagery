@@ -13,12 +13,13 @@ from Calibration.calibration_system_params import *
 import Calibration.calibration_server_data_convert as cd_converter
 from Models.OneDNet import OneDNet
 import os
-from Utilities.calibration_funcs import StreamingMeanStd
+from Utilities.calibration_funcs import StreamingMeanStd, convert_packet
 
 CHANNELS_USED = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 CLASSES_INCLUDED = [0, 1, 2]
 MODEL_UPDATE_FREQ = 0.1
 CHECKPOINTS_PATH = "Calibration/lightning_logs/"
+MEAN_STD_ESTIMATION_TIME = 30
 
 class LabelHolder():
     def __init__(self):
@@ -102,7 +103,7 @@ def main():
 
     buffer = np.zeros((CHANNELS - 1, SERVER_BUFFER_LEN))
     buffer_filled = 0
-
+    buffer_mean_dc_filled = 0
     buffer_mean_dc = np.zeros((CHANNELS - 1, MEAN_PERIOD_LEN))
 
     model = load_model()
@@ -114,10 +115,13 @@ def main():
     data = np.empty([1, 1, len(CHANNELS_USED), 107]) # shape = (None, 1, , len(CHANNELS_USED) + 1, 200)
     labels = []
     frames_saved = 0
+    frames_used_for_mean_std = 0
+    mean_std_saved = False
     t1 = 0
     label_holder = LabelHolder()
     model_update_timer = time.time()
     received_data_struct_buffer = bytearray()
+    mean_std_estimation_start = time.time()
     while True:
         # Decoding the received packet from ActiView
         received_bytes = 0
@@ -134,6 +138,26 @@ def main():
         label_holder.update_label(triggers)
         buffer_mean_dc = np.roll(buffer_mean_dc, -SAMPLES, axis=1)
         buffer_mean_dc[:, -SAMPLES:] = decoded_data
+        if buffer_mean_dc_filled + SAMPLES < MEAN_PERIOD_LEN:
+            buffer_mean_dc_filled += SAMPLES
+            continue
+        if time.time() - mean_std_estimation_start < MEAN_STD_ESTIMATION_TIME:
+            dc_means = buffer_mean_dc.mean(axis=1)
+            packet_no_dc = dc.remove_dc_offset(decoded_data, dc_means)
+            data_filtered = convert_packet(packet_no_dc)
+            if frames_used_for_mean_std == 0:
+                print("COLLECTING MEAN STD, SIT STILL")
+                streaming_mean_std = StreamingMeanStd(data_filtered)
+            else:
+                streaming_mean_std(data_filtered)
+            frames_used_for_mean_std =+ 1
+            continue
+        elif not mean_std_saved:
+            with open('streaming_mean_std.pkl', 'wb') as f:
+                to_save = {'mean': list(streaming_mean_std.mean), 'std': list(streaming_mean_std.std)}
+                pickle.dump(to_save, f)
+            mean_std_saved = True
+            print("SAVED MEAN: {} STD: {}".format(list(streaming_mean_std.mean), list(streaming_mean_std.std)))
         if label_holder.label is not None:
             buffer = np.roll(buffer, -SAMPLES, axis=1)
             buffer[:, -SAMPLES:] = decoded_data
@@ -170,19 +194,14 @@ def main():
                     print("LABELS LEN {}".format(len(labels)))
                     sec_res = np.zeros(3)
                     #sec_samp = 0
-                    np.save("CalibrationData/calibration_data.npy", data, allow_pickle=False, fix_imports=False)
+                    np.save("CalibrationData/calibration_data_kuba.npy", data, allow_pickle=False, fix_imports=False)
                     labels_to_save = np.array(labels)
-                    np.save("CalibrationData/calibration_labels.npy", labels_to_save, allow_pickle=True, fix_imports=False)
-                    with open('streaming_mean_std.pkl', 'wb') as f:
-                        to_save = {'mean': list(streaming_mean_std.mean), 'std': list(streaming_mean_std.std)}
-                        pickle.dump(to_save, f)
+                    np.save("CalibrationData/calibration_labels_kuba.npy", labels_to_save, allow_pickle=True, fix_imports=False)
                     t1 = time.time()
             if len(labels) > 500 and time.time() - model_update_timer > 1/MODEL_UPDATE_FREQ:
                 model = update_to_checkpoint()
                 print("Model RELOADED!")
                 model_update_timer = time.time()
-                print("Mean:", streaming_mean_std.mean)
-                print("Std:", streaming_mean_std.std)
 
 
             # left = True if label == 1 else False

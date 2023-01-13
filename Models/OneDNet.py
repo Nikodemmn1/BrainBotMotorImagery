@@ -277,3 +277,28 @@ class CalibrationOneDNet(OneDNet):
         mmd = (1 / x_len**2) * component1 + (1 / y_len**2) * component2 - (
                     2 / (x_len * y_len)) * component3
         return mmd
+
+class VisualiseModel(OneDNet):
+    def __init__(self, channel_count, included_classes,
+                 train_indices=None, val_indices=None, test_indices=None):
+        classes_count = len(included_classes)
+        super().__init__(channel_count, included_classes,
+                 train_indices=None, val_indices=None, test_indices=None)
+        self.features = nn.Sequential(
+            nn.Conv2d(1, 32, kernel_size=(3, 5), padding='same', padding_mode='circular'),
+
+            nn.Conv2d(32, 64, kernel_size=(3, 5), padding='valid'),
+
+            nn.Conv2d(64, 128, kernel_size=(3, 3), padding='valid'),
+        )
+
+        self.classifier = nn.Sequential(
+            nn.Linear(129280, 250),
+            nn.LeakyReLU(negative_slope=0.05, inplace=True),
+
+            nn.Linear(250, 120),
+            nn.LeakyReLU(negative_slope=0.05, inplace=True),
+
+            nn.Linear(120, classes_count),
+            nn.LogSoftmax(dim=1)
+        )
