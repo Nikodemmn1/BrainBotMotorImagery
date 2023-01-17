@@ -5,7 +5,13 @@ import pickle
 import Server.server_data_convert as dc
 import numpy as np
 import torch
+import time
 from Server.server_params import *
+from Utilities.decision_making import DecisionMaker
+
+
+JETBOT_ADDRESS = '192.168.0.101'
+JETBOT_PORT = 3333
 
 
 def create_sockets():
@@ -14,11 +20,12 @@ def create_sockets():
 
     # UDP socket for sending classification results to the client
     udp_server_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udp_server_sock.bind(('192.168.0.100', 22221))
 
     tcp_client_sock.bind(("localhost", TCP_LOCAL_PORT))
     tcp_client_sock.connect((TCP_AV_ADDRESS, TCP_AV_PORT))
-    udp_server_sock.bind((UDP_IP_ADDRESS, UDP_PORT))
-    udp_server_sock.connect((UDP_IP_ADDRESS, UDP_PORT))
+    #udp_server_sock.bind((UDP_IP_ADDRESS, UDP_PORT))
+    #udp_server_sock.connect((JETBOT_ADDRESS, JETBOT_PORT))
 
     return tcp_client_sock, udp_server_sock
 
@@ -36,6 +43,7 @@ def load_model():
     model.eval()
     return model
 
+kierunki = {'0' : 'lewo', '1': 'prawo', '2':'prosto', 'None':'None'}
 
 def main():
     # Sequence number of the last sent UDP packet
@@ -53,6 +61,12 @@ def main():
 
     sec_res = np.zeros(3)
     sec_samp = 0
+    time_start = time.time()
+
+    decision_maker = DecisionMaker(window_length=80, priorities=[2, 0, 1], thresholds=[0.55, 0.50, 0.75])
+    decisions_to_ignore = 0
+    decision_ignored = None
+    prev_decision = None
 
     while True:
         # Decoding the received packet from ActiView
@@ -74,23 +88,27 @@ def main():
             dc_means = buffer_mean_dc.mean(axis=1)
             buffer_no_dc = dc.remove_dc_offset(buffer, dc_means)
             x = dc.prepare_data_for_classification(buffer_no_dc, mean_std["mean"], mean_std["std"])
-            x = x[:, :, 2:, :]
+            x = x[:, :, 5:, :]
             y = dc.get_classification(x, model)
             out_ind = np.argmax(y.numpy())
-            sec_res[out_ind] += 1
+            # print(out_ind)
+            decision_maker.add_data(out_ind)
 
-            sec_samp += 1
-            if sec_samp % 16 == 0:
-                time = sec_samp * 0.0625
-                print(f"[{time:.2f}]Max: {np.argmax(sec_res)+1}: [{sec_res[0]}, {sec_res[1]}, {sec_res[2]}]")
-                sec_res = np.zeros(3)
-
-            # left = True if label == 1 else False
-            # forward = True
-            # send_string = '{"left": ' + str(left).lower() + ', "forward": ' + str(forward).lower() + "} "
-            # message_bytes = send_string.encode()
-            # result_to_send = struct.pack("I", seq_num) + message_bytes
-            # udp_server_sock.sendto(result_to_send, (REMOTE_UDP_ADDRESS, REMOTE_UDP_PORT))
+            if time.time() - time_start > 0.75:
+                decision = str(decision_maker.decide())
+                if decisions_to_ignore > 0 and prev_decision != decision and decision_ignored != decision:
+                    decisions_to_ignore -= 1
+                else:
+                    if decision == '0' or decision == '1':
+                        decisions_to_ignore = 5
+                        decision_ignored = decision
+                    print(f"Decision: {kierunki[decision]}")
+                    print(decision_maker.decisions_masks)
+                    if decision != 'None':
+                        bytes_to_send = str.encode(decision)
+                        udp_server_sock.sendto(bytes_to_send, (JETBOT_ADDRESS, JETBOT_PORT))
+                time_start = time.time()
+                prev_decision = decision
 
             seq_num += 1
             if seq_num == 2 ^ 32:

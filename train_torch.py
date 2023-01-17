@@ -7,8 +7,7 @@ from Dataset.dataset import *
 
 def main():
     included_classes = [0, 1, 2]
-    included_channels = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-    # included_channels = range(16)
+    included_channels = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     full_dataset = EEGDataset("./DataBDF/Out/Out_train.npy",
                               "./DataBDF/Out/Out_val.npy",
                               "./DataBDF/Out/Out_test.npy",
@@ -26,13 +25,13 @@ def main():
     #                                     checkpoint_path="./lightning_logs/version_118/checkpoints/epoch=59-step=17640.ckpt")
 
     trainer = Trainer(gpus=-1, callbacks=[TQDMProgressBar(refresh_rate=5),
-                                          StochasticWeightAveraging(swa_lrs=0.001),
+                                          StochasticWeightAveraging(swa_lrs=1e-2),
                                           ModelCheckpoint(save_weights_only=False,
                                                           monitor="Val loss",
                                                           save_last=True,
                                                           save_top_k=3,
                                                           mode='min')],
-                      check_val_every_n_epoch=1, benchmark=True)
+                      check_val_every_n_epoch=5, benchmark=True)
 
     trainer.fit(model, train_data, val_data)
 
