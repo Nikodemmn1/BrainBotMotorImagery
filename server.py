@@ -39,7 +39,7 @@ def load_mean_std():
 
 def load_model():
     """Loading the trained OneDNet model"""
-    model = torch.load("./model.pt")
+    model = torch.load("model.pt")
     model.eval()
     return model
 

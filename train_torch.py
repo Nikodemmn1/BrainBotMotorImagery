@@ -13,9 +13,9 @@ def main():
                               "./DataBDF/Out/Out_test.npy",
                               included_classes, included_channels)
     train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
-    train_data = DataLoader(train_dataset, batch_size=512, shuffle=True, num_workers=12)
+    train_data = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4)
     val_data = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=0)
-    test_data = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0)
+    test_data = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=0)
 
     model = OneDNet(len(included_channels), included_classes, train_dataset.indices,
                     val_dataset.indices, test_dataset.indices)

@@ -1,7 +1,7 @@
 from SharedParameters.signal_parameters import BIOSEMI_CHANNELS_COUNT
 
 
-CHANNELS = BIOSEMI_CHANNELS_COUNT  # field "Channels sent by TCP" in Actiview
+CHANNELS = BIOSEMI_CHANNELS_COUNT # field "Channels sent by TCP" in Actiview
 SAMPLES = 128  # field "TCP samples/channel" in Actiview
 WORDS = CHANNELS * SAMPLES
 
