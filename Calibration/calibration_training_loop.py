@@ -10,6 +10,7 @@ import os
 import warnings
 from typing import Any, Optional, Type
 import torch
+import time
 
 import pytorch_lightning as pl
 from pytorch_lightning.accelerators import CUDAAccelerator
@@ -76,10 +77,11 @@ class UpdateCallback(Callback):
         train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
 
 def main():
+    #time.sleep(30)
     load_from_checkpoint = True
     included_classes = [0, 1, 2]
     # included_channels = range(16)
-    included_channels = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    included_channels = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     global full_dataset, train_dataset, val_dataset, test_dataset
     full_dataset = CalibrationDataset("../CalibrationData/calibration_data_piotr.npy",
                                       "../CalibrationData/calibration_labels_piotr.npy",
@@ -93,12 +95,12 @@ def main():
         # model = OneDNet.load_from_checkpoint(channel_count=len(included_channels),
         #                                      included_classes=included_classes,
         #                                      checkpoint_path="../model.pt")
-        model = torch.load("../model_nikodem.pt")
+        model = torch.load("../model.pt")
     else:
         model = OneDNet(len(included_channels), included_classes, train_dataset.indices,
                         val_dataset.indices, test_dataset.indices)
 
-    trainer = Trainer(gpus=-1, callbacks=[TQDMProgressBar(refresh_rate=5),
+    trainer = Trainer(accelerator='gpu', devices=-1, callbacks=[TQDMProgressBar(refresh_rate=5),
                                           StochasticWeightAveraging(swa_lrs=0.001),
                                           ModelCheckpoint(save_weights_only=False,
                                                           monitor="Val loss",

@@ -15,11 +15,11 @@ from Models.OneDNet import OneDNet
 import os
 from Utilities.calibration_funcs import StreamingMeanStd, convert_packet
 
-CHANNELS_USED = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+CHANNELS_USED = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 CLASSES_INCLUDED = [0, 1, 2]
 MODEL_UPDATE_FREQ = 0.1
 CHECKPOINTS_PATH = "Calibration/lightning_logs/"
-MEAN_STD_ESTIMATION_TIME = 5
+MEAN_STD_ESTIMATION_TIME = 15
 
 class LabelHolder():
     def __init__(self):
