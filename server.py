@@ -10,17 +10,22 @@ from Server.server_params import *
 from Utilities.decision_making import DecisionMaker
 
 
+JETBOT_ADDRESS = '192.168.0.101'
+JETBOT_PORT = 3333
+
+
 def create_sockets():
     # TCP Socket for receiving data from Actiview
     tcp_client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     # UDP socket for sending classification results to the client
     udp_server_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udp_server_sock.bind(('192.168.0.100', 22221))
 
     tcp_client_sock.bind(("localhost", TCP_LOCAL_PORT))
     tcp_client_sock.connect((TCP_AV_ADDRESS, TCP_AV_PORT))
-    udp_server_sock.bind((UDP_IP_ADDRESS, UDP_PORT))
-    udp_server_sock.connect((UDP_IP_ADDRESS, UDP_PORT))
+    #udp_server_sock.bind((UDP_IP_ADDRESS, UDP_PORT))
+    #udp_server_sock.connect((JETBOT_ADDRESS, JETBOT_PORT))
 
     return tcp_client_sock, udp_server_sock
 
@@ -38,6 +43,7 @@ def load_model():
     model.eval()
     return model
 
+kierunki = {'0' : 'lewo', '1': 'prawo', '2':'prosto', 'None':'None'}
 
 def main():
     # Sequence number of the last sent UDP packet
@@ -57,10 +63,10 @@ def main():
     sec_samp = 0
     time_start = time.time()
 
-    JETBOT_ADDRESS = '192.168.250.149'
-    JETBOT_PORT = 3333
-
-    decision_maker = DecisionMaker(window_length=60, priorities=[2, 0, 1], thresholds=[0.4, 0.4, 0.8])
+    decision_maker = DecisionMaker(window_length=80, priorities=[2, 0, 1], thresholds=[0.55, 0.50, 0.75])
+    decisions_to_ignore = 0
+    decision_ignored = None
+    prev_decision = None
 
     while True:
         # Decoding the received packet from ActiView
@@ -82,16 +88,27 @@ def main():
             dc_means = buffer_mean_dc.mean(axis=1)
             buffer_no_dc = dc.remove_dc_offset(buffer, dc_means)
             x = dc.prepare_data_for_classification(buffer_no_dc, mean_std["mean"], mean_std["std"])
-            x = x[:, :, 2:, :]
+            x = x[:, :, 5:, :]
             y = dc.get_classification(x, model)
             out_ind = np.argmax(y.numpy())
+            # print(out_ind)
             decision_maker.add_data(out_ind)
 
-            if time.time() - time_start > 2.0:
-                decision = decision_maker.decide()
-                bytes_to_send = str.encode(decision)
-                udp_server_sock.sendto(bytes_to_send, (JETBOT_ADDRESS, JETBOT_PORT))
+            if time.time() - time_start > 0.75:
+                decision = str(decision_maker.decide())
+                if decisions_to_ignore > 0 and prev_decision != decision and decision_ignored != decision:
+                    decisions_to_ignore -= 1
+                else:
+                    if decision == '0' or decision == '1':
+                        decisions_to_ignore = 5
+                        decision_ignored = decision
+                    print(f"Decision: {kierunki[decision]}")
+                    print(decision_maker.decisions_masks)
+                    if decision != 'None':
+                        bytes_to_send = str.encode(decision)
+                        udp_server_sock.sendto(bytes_to_send, (JETBOT_ADDRESS, JETBOT_PORT))
                 time_start = time.time()
+                prev_decision = decision
 
             seq_num += 1
             if seq_num == 2 ^ 32:

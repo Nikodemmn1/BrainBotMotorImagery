@@ -1,3 +1,5 @@
+import select
+
 import nanocamera as nano
 
 # !!It has to be at beginning otherwise randomly crashes when starting!!
@@ -32,34 +34,37 @@ COMMANDS = {
 
 
 class UDPClient:
-    def __init__(self, server_address="192.168.0.195", port=22221, in_port=3333, buff_size=1024):
+    def __init__(self, server_address="192.168.0.100", port=22221, in_port=3333, buff_size=1024):
         self.SERVER_ADDRESS_PORT = (server_address, port)
         self.BUFFER_SIZE = buff_size
         self.UDP_CLIENT_SOCKET = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-        self.UDP_CLIENT_SOCKET.bind(('localhost', in_port))
+        self.UDP_CLIENT_SOCKET.bind(("192.168.0.101", in_port))
+        self.UDP_CLIENT_SOCKET.recv(buff_size)
+        print('Received!')
 
     def send_message(self, message):
         bytes_to_send = str.encode(message)
         self.UDP_CLIENT_SOCKET.sendto(bytes_to_send, self.SERVER_ADDRESS_PORT)
 
     def receive_message(self):
-        message = self.UDP_CLIENT_SOCKET.recvfrom(self.BUFFER_SIZE)
-        return message[0], message[1]
+        message = self.UDP_CLIENT_SOCKET.recv(self.BUFFER_SIZE)
+        return message
 
     def receive_command(self):
         message = self.receive_message()
-        command_index_str = message[0].decode("utf-8")
+        command_index_str = message.decode("utf-8")
         command_index = int(command_index_str)
         command = COMMANDS[command_index]
         print('RECEIVED COMMAND FROM SERVER', command)
         return command
 
     def flush_udp(self):
-        self.UDP_CLIENT_SOCKET.setblocking(False)
-        x = 1
-        while x:
-            x = self.UDP_CLIENT_SOCKET.recv(self.BUFFER_SIZE)
-        self.UDP_CLIENT_SOCKET.setblocking(True)
+        while True:
+            x, _, _ = select.select([self.UDP_CLIENT_SOCKET], [], [], 0.001)
+            if len(x) == 0:
+                break
+            else:
+                self.UDP_CLIENT_SOCKET.recv(self.BUFFER_SIZE)
 
 
 class Midas:
@@ -117,55 +122,67 @@ class Jetson:
         right = self.free_boxes[2]
 
         if command == 'forward':
-            if left and front and right:
-                print(f"Executing command: {command} - Going FRONT")
-                robot.forward(speed)
-            elif left and front:
-                print(f"Executing command: {command} - Going FRONT-SLIGHTLY-LEFT")
-                robot.left(speed)
-                time.sleep(0.1)
-                robot.forward(speed)
-            elif front and right:
-                print(f"Executing command: {command} - Going FRONT-SLIGHTLY-RIGHT")
-                robot.right(speed)
-                time.sleep(0.1)
-                robot.forward(speed)
-            elif left:
-                print(f"Executing command: {command} - Going LEFT")
-                robot.left(speed)
-                time.sleep(sleep_time)
-                robot.forward(speed)
-            elif right:
-                print(f"Executing command: {command} - Going RIGHT")
-                robot.left(speed)
-                time.sleep(sleep_time)
-                robot.forward(speed)
-            else:
-                print(f"Executing command: {command} - Going TURN-AROUND")
-                robot.backward(speed)
-                time.sleep(0.3)
-                robot.left(speed)
+            robot.forward(speed)
+            time.sleep(sleep_time)
         elif command == 'left':
-            if left:
-                print(f"Executing command: {command} - Going LEFT")
-                robot.left(speed)
-            else:
-                print(f"Executing command: {command} - Going TURN-AROUND")
-                robot.backward(speed)
-                time.sleep(0.3)
-                robot.left(speed)
-        elif command == 'right':
-            if left:
-                print(f"Executing command: {command} - Going RIGHT")
-                robot.right(speed)
-            else:
-                print(f"Executing command: {command} - Going TURN-AROUND")
-                robot.backward(speed)
-                time.sleep(0.3)
-                robot.left(speed)
+            robot.left(speed)
+            time.sleep(sleep_time / 2)
+        else:
+            robot.right(speed)
+            time.sleep(sleep_time / 2)
 
-        time.sleep(sleep_time)
         robot.stop()
+
+
+        # if command == 'forward':
+        #     if left and front and right:
+        #         print(f"Executing command: {command} - Going FRONT")
+        #         robot.forward(speed)
+        #     elif left and front:
+        #         print(f"Executing command: {command} - Going FRONT-SLIGHTLY-LEFT")
+        #         robot.left(speed)
+        #         time.sleep(0.1)
+        #         robot.forward(speed)
+        #     elif front and right:
+        #         print(f"Executing command: {command} - Going FRONT-SLIGHTLY-RIGHT")
+        #         robot.right(speed)
+        #         time.sleep(0.1)
+        #         robot.forward(speed)
+        #     elif left:
+        #         print(f"Executing command: {command} - Going LEFT")
+        #         robot.left(speed)
+        #         time.sleep(sleep_time)
+        #         robot.forward(speed)
+        #     elif right:
+        #         print(f"Executing command: {command} - Going RIGHT")
+        #         robot.left(speed)
+        #         time.sleep(sleep_time)
+        #         robot.forward(speed)
+        #     else:
+        #         print(f"Executing command: {command} - Going TURN-AROUND")
+        #         robot.backward(speed)
+        #         time.sleep(0.3)
+        #         robot.left(speed)
+        # elif command == 'left':
+        #     if left:
+        #         print(f"Executing command: {command} - Going LEFT")
+        #         robot.left(speed)
+        #     else:
+        #         print(f"Executing command: {command} - Going TURN-AROUND")
+        #         robot.backward(speed)
+        #         time.sleep(0.3)
+        #         robot.left(speed)
+        # elif command == 'right':
+        #     if left:
+        #         print(f"Executing command: {command} - Going RIGHT")
+        #         robot.right(speed)
+        #     else:
+        #         print(f"Executing command: {command} - Going TURN-AROUND")
+        #         robot.backward(speed)
+        #         time.sleep(0.3)
+        #         robot.left(speed)
+
+
 
     @staticmethod
     def save_frame(frame):
@@ -219,6 +236,7 @@ if __name__ == '__main__':
         if i == frame_count:
             udp_client.flush_udp()
             command = udp_client.receive_command()
+            print(f"Received command:{command}")
             jetson.move(command)
             i = 0
 
