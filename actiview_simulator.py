@@ -6,7 +6,7 @@ from Server.server_params import *
 import socket
 from tqdm import tqdm
 
-LOAD = True
+LOAD = False
 
 CHANNELS_TO_SEND = CHANNELS
 
@@ -15,7 +15,7 @@ if not LOAD:
     CHANNELS_IN_FILE = 17  # with triggers
     HEADER_LENGTH = 256 * (CHANNELS_IN_FILE + 1)
     SAMPLING_RATE = 2048
-    DATA_PATH = "DataBDF/TrainData/Kuba/"
+    DATA_PATH = "DataBDF/Piotr/"
     FILE_PATHS = os.listdir(DATA_PATH)
     samples_list = []
     for file_path in FILE_PATHS:
@@ -38,9 +38,9 @@ if not LOAD:
                     samples[ch, sec * SAMPLING_RATE + sam, :] = data[beg:beg + 3]
         samples_list.append(samples)
     samples_to_save = np.concatenate(samples_list, axis = 1)
-    np.save("testdata_kuba.npy", samples_to_save)
+    np.save("testdata_piotr.npy", samples_to_save)
 else:
-    samples = np.load("testdata_kuba.npy")
+    samples = np.load("testdata_piotr.npy")
 
 #samples2 = samples[:, :, 0].astype("int32") + samples[:, :, 1].astype("int32") * 256 + samples[:, :, 2].astype(
 #    "int32") * 256 * 256

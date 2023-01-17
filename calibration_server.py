@@ -19,7 +19,7 @@ CHANNELS_USED = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 CLASSES_INCLUDED = [0, 1, 2]
 MODEL_UPDATE_FREQ = 0.1
 CHECKPOINTS_PATH = "Calibration/lightning_logs/"
-MEAN_STD_ESTIMATION_TIME = 30
+MEAN_STD_ESTIMATION_TIME = 5
 
 class LabelHolder():
     def __init__(self):
@@ -103,7 +103,7 @@ def main():
 
     buffer = np.zeros((CHANNELS - 1, SERVER_BUFFER_LEN))
     buffer_filled = 0
-    buffer_mean_dc_filled = 0
+
     buffer_mean_dc = np.zeros((CHANNELS - 1, MEAN_PERIOD_LEN))
 
     model = load_model()
@@ -136,15 +136,20 @@ def main():
         # decoded_data[CHANNELS-1, :] = np.bitwise_and(decoded_data[CHANNELS-1, :].astype(int), 2 ** 17 - 1)
         #class_id = receive_data_from_acquisition_app(udp_acquisition_sock)
         label_holder.update_label(triggers)
+
+        buffer = np.roll(buffer, -SAMPLES, axis=1)
+        buffer[:, -SAMPLES:] = decoded_data
+
         buffer_mean_dc = np.roll(buffer_mean_dc, -SAMPLES, axis=1)
         buffer_mean_dc[:, -SAMPLES:] = decoded_data
-        if buffer_mean_dc_filled + SAMPLES < MEAN_PERIOD_LEN:
-            buffer_mean_dc_filled += SAMPLES
+
+        if buffer_filled + SAMPLES < MEAN_PERIOD_LEN:
+            buffer_filled += SAMPLES
             continue
         if time.time() - mean_std_estimation_start < MEAN_STD_ESTIMATION_TIME:
             dc_means = buffer_mean_dc.mean(axis=1)
-            packet_no_dc = dc.remove_dc_offset(decoded_data, dc_means)
-            data_filtered = convert_packet(packet_no_dc)
+            buffer_no_dc = dc.remove_dc_offset(buffer, dc_means)
+            data_filtered = convert_packet(buffer_no_dc)
             if frames_used_for_mean_std == 0:
                 print("COLLECTING MEAN STD, SIT STILL")
                 streaming_mean_std = StreamingMeanStd(data_filtered)
@@ -168,8 +173,7 @@ def main():
             else:
                 dc_means = buffer_mean_dc.mean(axis=1)
                 buffer_no_dc = dc.remove_dc_offset(buffer, dc_means)
-                # TODO use StreamingMeanStd
-                x = dc.prepare_data_for_classification(buffer_no_dc, mean_std['mean'], mean_std['std'])
+                x = dc.prepare_data_for_classification(buffer_no_dc, list(streaming_mean_std.mean), list(streaming_mean_std.std))
                 x = x[:, :, CHANNELS_USED, :]
                 y = dc.get_classification(x, model)
                 out_ind = np.argmax(y.numpy())
@@ -194,9 +198,9 @@ def main():
                     print("LABELS LEN {}".format(len(labels)))
                     sec_res = np.zeros(3)
                     #sec_samp = 0
-                    np.save("CalibrationData/calibration_data_kuba.npy", data, allow_pickle=False, fix_imports=False)
+                    np.save("CalibrationData/calibration_data_piotr.npy", data, allow_pickle=False, fix_imports=False)
                     labels_to_save = np.array(labels)
-                    np.save("CalibrationData/calibration_labels_kuba.npy", labels_to_save, allow_pickle=True, fix_imports=False)
+                    np.save("CalibrationData/calibration_labels_piotr.npy", labels_to_save, allow_pickle=True, fix_imports=False)
                     t1 = time.time()
             if len(labels) > 500 and time.time() - model_update_timer > 1/MODEL_UPDATE_FREQ:
                 model = update_to_checkpoint()

@@ -81,8 +81,8 @@ def main():
     # included_channels = range(16)
     included_channels = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     global full_dataset, train_dataset, val_dataset, test_dataset
-    full_dataset = CalibrationDataset("../CalibrationData/calibration_data_kuba.npy",
-                                      "../CalibrationData/calibration_labels_kuba.npy",
+    full_dataset = CalibrationDataset("../CalibrationData/calibration_data_piotr.npy",
+                                      "../CalibrationData/calibration_labels_piotr.npy",
                                       included_classes)
     train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
     train_data = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4, drop_last=True)
