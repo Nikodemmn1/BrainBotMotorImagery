@@ -21,11 +21,7 @@ class PreConverter:
     def preconvert(self):
         for i_file_path in self.input_file_paths:
             self.preconvert_file(i_file_path)
-
-            #snippets_len_min = min([len(snippet) for snippet in self.snippets])
-            #self.snippets = np.array([lc[:snippets_len_min] for lc in self.snippets], dtype='float32')
             out_path = f"{self.output_folder}/{basename(i_file_path)}_snippets.pkl"
-            #np.save(out_path, self.snippets, allow_pickle=False, fix_imports=False)
 
             with open(out_path, 'wb') as handle:
                 pickle.dump(self.snippets, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -112,8 +108,8 @@ class BiosemiBDFPreConverter(PreConverter):
 
 class LargeEEGDataPreConverter(PreConverter):
     CHANNELS_ORDER = [0, 1, 3, 18, 2, 14, 4, 19, 5, 15, 7, 20, 6, 8, 16, 9]
-    OVERLAP = 80
-    CLASSES_COUNT = 6
+    OVERLAP = 12
+    CLASSES_COUNT = 3
 
     def preconvert_file(self, i_file_path):
         mat = scipy.io.loadmat(i_file_path)
@@ -128,16 +124,8 @@ class LargeEEGDataPreConverter(PreConverter):
                     recording = raw_data[:, slice_start:i]
                     recording_len_excess = recording.shape[1] % self.OVERLAP
                     recording_len_divisible = recording.shape[1] - recording_len_excess
-                    beg_excess = recording_len_excess // 2
-                    end_excess = recording_len_excess - beg_excess
-                    self.snippets[curr_marker - 1] += [np.split(recording[:, beg_excess:-end_excess],
-                                                               recording_len_divisible / self.OVERLAP, 1)]
+                    self.snippets[curr_marker - 1] += [np.split(recording[:, recording_len_excess:],
+                                  recording_len_divisible / self.OVERLAP, 1)]
                 if markers[i] in range(1, 7):
                     slice_start = i
                 curr_marker = markers[i]
-
-        for snippet_class in range(self.CLASSES_COUNT):
-            for snippet in self.snippets[snippet_class]:
-                snippet_mean = np.concatenate(snippet, axis=1).mean(axis=1)
-                for i in range(len(snippet)):
-                    snippet[i] -= snippet_mean[:, None]

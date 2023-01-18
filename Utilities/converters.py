@@ -228,10 +228,10 @@ class LargeEEGDataConverter(EEGDataConverter):
     DATASET_FREQ = 200
     CHANNELS_ORDER = [0, 1, 3, 18, 2, 14, 4, 19, 5, 15, 7, 20, 6, 8, 16, 9]
 
-    BUFFER_LENGTH = 800
-    OVERLAP = 80
+    BUFFER_LENGTH = 192
+    OVERLAP = 12
 
-    CLASSES_COUNT = 6
+    CLASSES_COUNT = 3
 
     LOW_PASS_FREQ_PB = 30
     LOW_PASS_FREQ_SB = 60
@@ -244,13 +244,67 @@ class LargeEEGDataConverter(EEGDataConverter):
     MAX_LOSS_PB = 2
     MIN_ATT_SB = 8
 
-    DECIMATION_FACTOR = 4
+    DECIMATION_FACTOR = 3
+
+    MEAN_STD_PATH = "./DataEEG/Snippets/mean_std.pkl"
+
+    def _convert(self):
+        buffer_duplicate = np.zeros((len(self.CHANNELS_ORDER), self.BUFFER_LENGTH)).astype('float32')
+
+        for dset in range(3):
+            for i_file_path in self.input_file_paths[dset]:
+                with open(i_file_path, 'rb') as handle:
+                    snippets = pickle.load(handle)
+                for label, labeled_snippets in enumerate(snippets):
+                    for snippet in labeled_snippets:
+                        buffer = np.zeros((len(self.CHANNELS_ORDER), self.BUFFER_LENGTH)).astype('float32')
+                        buffer_filled = 0
+                        for mini_snippet_i in range(len(snippet)):
+                            mini_snippet = snippet[mini_snippet_i]
+                            buffer = np.roll(buffer, -self.OVERLAP, 1)
+                            buffer[:, -self.OVERLAP:] = mini_snippet
+
+                            if buffer_filled + self.OVERLAP < self.BUFFER_LENGTH:
+                                buffer_filled += self.OVERLAP
+                            else:
+                                buffer_duplicate[:, ...] = buffer
+                                buffer = self._filter(buffer)
+                                buffer -= buffer.min(axis=1)[:, None]
+                                buffer += math.e ** -2
+                                buffer = np.log(buffer)
+                                self.converted_data[dset].append(buffer)
+                                self.labels[dset].append(label)
+                                buffer = buffer_duplicate
+                del snippets
+                gc.collect()
+
+    def _normalize(self):
+        print("Converting to numpy array...")
+
+        for dset in range(3):
+            if len(self.converted_data[dset]) > 0:
+                self.converted_data[dset] = np.dstack(self.converted_data[dset]).astype('float32').transpose(
+                    (2, 0, 1))
+                gc.collect()
+
+        print("Convertion complete, proceeding with normalization...")
+
+        with open(self.MEAN_STD_PATH, "rb") as mean_std_file:
+            mean_std = pickle.load(mean_std_file)
+
+        mean = mean_std['mean']
+        std = mean_std['std']
+
+        print(mean)
+        print(std)
+
+        self._normalize_post_calc(mean, std)
 
 
 class BiosemiBDFConverter(EEGDataConverter):
     DATASET_FREQ = 2048
 
-    BUFFER_LENGTH = 3200
+    BUFFER_LENGTH = 2048
     OVERLAP = 128
 
     CLASSES_COUNT = 3

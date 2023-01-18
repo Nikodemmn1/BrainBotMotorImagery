@@ -12,9 +12,53 @@ import random
 from Utilities import augmentations as aug
 import numpy as np
 import cProfile
-import math
 
-class OneDNet(LightningModule):
+
+class OneDNetConvBlock(nn.Module):
+    def __init__(self, in_channels, out_chanels, **kwargs):
+        super(OneDNetConvBlock, self).__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(in_channels, out_chanels, **kwargs),
+            nn.BatchNorm2d(out_chanels),
+            nn.LeakyReLU(negative_slope=0.05, inplace=True)
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
+class OneDNetInceptionBlock(nn.Module):
+    def __init__(
+            self,
+            in_channels,
+            out_1x1,
+            red_3x3,
+            out_3x3,
+            red_5x5,
+            out_5x5,
+            out_pool,
+    ):
+        super(OneDNetInceptionBlock, self).__init__()
+        self.branch1 = OneDNetConvBlock(in_channels, out_1x1, kernel_size=1)
+        self.branch2 = nn.Sequential(
+            OneDNetConvBlock(in_channels, red_3x3, kernel_size=1, padding=0),
+            OneDNetConvBlock(red_3x3, out_3x3, kernel_size=(1,3), padding=(0,1)),
+        )
+        self.branch3 = nn.Sequential(
+            OneDNetConvBlock(in_channels, red_5x5, kernel_size=1),
+            OneDNetConvBlock(red_5x5, out_5x5, kernel_size=(1,5), padding=(0,2)),
+        )
+        self.branch4 = nn.Sequential(
+            nn.MaxPool2d(kernel_size=(1,3), padding=(0,1), stride=1),
+            OneDNetConvBlock(in_channels, out_pool, kernel_size=1),
+        )
+
+    def forward(self, x):
+        branches = (self.branch1, self.branch2, self.branch3, self.branch4)
+        return torch.cat([branch(x) for branch in branches], 1)
+
+
+class OneDNetInception(LightningModule):
     def __init__(self, channel_count, included_classes,
                  train_indices=None, val_indices=None, test_indices=None):
         super().__init__()
@@ -42,6 +86,12 @@ class OneDNet(LightningModule):
             nn.LeakyReLU(negative_slope=0.05, inplace=True),
             nn.BatchNorm2d(128),
             nn.Dropout2d(p=0.6),
+
+            OneDNetInceptionBlock(128, 64, 32, 64, 16, 32, 32),
+            OneDNetInceptionBlock(192, 80, 48, 80, 32, 48, 48),
+            #OneDNetInceptionBlock(256, 96, 64, 96, 48, 64, 64),
+            #OneDNetInceptionBlock(320, 160, 96, 160, 64, 96, 96),
+            nn.AvgPool2d(kernel_size=(1, 2)),
         )
 
         self.classifier = nn.Sequential(
@@ -53,7 +103,7 @@ class OneDNet(LightningModule):
             nn.Linear(250, 120),
             nn.LeakyReLU(negative_slope=0.05, inplace=True),
             nn.BatchNorm1d(120),
-            nn.Dropout(p=0.5),
+            nn.Dropout(p=0.7),
 
             nn.Linear(120, classes_count),
             nn.LogSoftmax(dim=1)
@@ -153,27 +203,6 @@ class OneDNet(LightningModule):
 
     def on_save_checkpoint(self, checkpoint):
         checkpoint['indices'] = self.indices
-
-    def on_before_batch_transfer(self, batch, dataloader_idx):
-        x, y = batch
-        if self.trainer.training and random.random() < 0.3:
-            x = np.swapaxes(np.squeeze(x), 1, 2)
-
-            #prof = cProfile.Profile()
-            #prof.enable()
-            ##
-            x = self.augmenter(x)
-            ##
-            #prof.disable()
-            #s = io.StringIO()
-            #sortby = pstats.SortKey.CUMULATIVE
-            #ps = pstats.Stats(prof, stream=s).sort_stats(sortby)
-            #ps.print_stats()
-            #print(s.getvalue())
-
-            x = np.expand_dims(np.swapaxes(x, 1, 2), 1)
-            x = torch.Tensor(x).type(torch.float32)
-        return x, y
 
 
 class Augmenter(nn.Module):
