@@ -61,7 +61,7 @@ def main():
         for j in range(3):
             buffer = data2[j][i]
             x = dc.prepare_data_for_classification(buffer, mean_std["mean"], mean_std["std"])
-            x = x[:, :, 2:, :]
+            x = x[:, :, 5:, :]
             y = dc.get_classification(x, model)
             out_ind = np.argmax(y.numpy())
             if out_ind == j:

@@ -18,12 +18,12 @@ def main():
     val_data = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=0)
     test_data = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0)
 
-    model = OneDNetInception(len(included_channels), included_classes, train_dataset.indices,
-                    val_dataset.indices, test_dataset.indices)
+    #model = OneDNet(len(included_channels), included_classes, train_dataset.indices,
+    #                val_dataset.indices, test_dataset.indices)
 
-    #model = OneDNet.load_from_checkpoint(channel_count=len(included_channels),
-    #                                     included_classes=included_classes,
-    #                                     checkpoint_path="./lightning_logs/version_50/checkpoints/epoch=999-step=10000.ckpt")
+    model = OneDNet.load_from_checkpoint(channel_count=len(included_channels),
+                                         included_classes=included_classes,
+                                         checkpoint_path="./lightning_logs/version_75/checkpoints/epoch=144-step=41615.ckpt")
 
     trainer = Trainer(gpus=-1, callbacks=[TQDMProgressBar(refresh_rate=5),
                                           StochasticWeightAveraging(swa_lrs=1e-2),
