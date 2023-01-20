@@ -304,7 +304,7 @@ class LargeEEGDataConverter(EEGDataConverter):
 class BiosemiBDFConverter(EEGDataConverter):
     DATASET_FREQ = 2048
 
-    BUFFER_LENGTH = 2048
+    BUFFER_LENGTH = 3200
     OVERLAP = 128
 
     CLASSES_COUNT = 3
