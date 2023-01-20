@@ -304,10 +304,10 @@ class LargeEEGDataConverter(EEGDataConverter):
 class BiosemiBDFConverter(EEGDataConverter):
     DATASET_FREQ = 2048
 
-    BUFFER_LENGTH = 2048
+    BUFFER_LENGTH = 3200
     OVERLAP = 128
 
-    CLASSES_COUNT = 3
+    CLASSES_COUNT = 4
 
     LOW_PASS_FREQ_PB = 30
     LOW_PASS_FREQ_SB = 60

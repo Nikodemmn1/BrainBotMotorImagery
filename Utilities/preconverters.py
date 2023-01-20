@@ -23,6 +23,8 @@ class PreConverter:
             self.preconvert_file(i_file_path)
             out_path = f"{self.output_folder}/{basename(i_file_path)}_snippets.pkl"
 
+            self.snippets[3] = self.snippets[3][::3]
+
             with open(out_path, 'wb') as handle:
                 pickle.dump(self.snippets, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -33,7 +35,7 @@ class PreConverter:
 class BiosemiBDFPreConverter(PreConverter):
     DATASET_FREQ = 2048
     OVERLAP = 128
-    CLASSES_COUNT = 3
+    CLASSES_COUNT = 4
     CHANNELS_IN_FILE = 17  # with triggers
     HEADER_LENGTH = 256 * (CHANNELS_IN_FILE + 1)
 
@@ -76,11 +78,11 @@ class BiosemiBDFPreConverter(PreConverter):
         raw_data = raw_data.astype('float32')
         raw_data -= 0.55 * (raw_data[6, :] + raw_data[8, :])  # referencing the signal
 
-        slice_start = -1
-        curr_marker = -1
+        slice_start = 0
+        curr_marker = 0
         for i in range(markers.size - 1):
             if markers[i] != -1:
-                if curr_marker > 0 and markers[i - 1] == -1:
+                if curr_marker >= 0 and markers[i - 1] == -1:
                     recording = raw_data[:, slice_start:i]
                     recording_len_excess = recording.shape[1] % self.OVERLAP
                     recording_len_divisible = recording.shape[1] - recording_len_excess
@@ -96,12 +98,14 @@ class BiosemiBDFPreConverter(PreConverter):
                         else:
                             mean = raw_data[:, raw_data_index - self.MEAN_PERIOD_LEN:raw_data_index].mean(axis=1)
                         means.append(mean)
+                    if curr_marker == 0:
+                        curr_marker = 4
                     self.snippets[curr_marker - 1] += [(
                         recording_splits,
                         means
                     )]
                     slice_start = -1
-                if markers[i] != 0 and markers[i + 1] == -1:
+                if markers[i + 1] == -1:
                     slice_start = i
                 curr_marker = markers[i]
 
