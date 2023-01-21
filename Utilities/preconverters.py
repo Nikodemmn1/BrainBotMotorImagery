@@ -8,10 +8,11 @@ import numpy as np
 class PreConverter:
     CLASSES_COUNT = None
     OVERLAP = None
+    EXTENSION = None
 
     def __init__(self, input_folder, output_folder):
         input_paths = [join(input_folder, file_name) for file_name in os.listdir(input_folder)]
-        self.input_file_paths = [input_file_path for input_file_path in input_paths if isfile(input_file_path)]
+        self.input_file_paths = [input_file_path for input_file_path in input_paths if isfile(input_file_path) and input_file_path.endswith(self.EXTENSION)]
         self.output_folder = output_folder
         self.snippets = [[] for _ in range(self.CLASSES_COUNT)]
 
@@ -40,6 +41,8 @@ class BiosemiBDFPreConverter(PreConverter):
     HEADER_LENGTH = 256 * (CHANNELS_IN_FILE + 1)
 
     MEAN_PERIOD_LEN = 8192
+
+    EXTENSION = ".bdf"
 
     def preconvert_file(self, i_file_path):
         file_len_bytes = os.stat(i_file_path).st_size
@@ -114,6 +117,8 @@ class LargeEEGDataPreConverter(PreConverter):
     CHANNELS_ORDER = [0, 1, 3, 18, 2, 14, 4, 19, 5, 15, 7, 20, 6, 8, 16, 9]
     OVERLAP = 12
     CLASSES_COUNT = 3
+
+    EXTENSION = ".edf"
 
     def preconvert_file(self, i_file_path):
         mat = scipy.io.loadmat(i_file_path)

@@ -76,29 +76,28 @@ class OneDNetEnsemble(LightningModule):
             nn.BatchNorm2d(64),
             nn.Dropout2d(p=0.6),
 
-            nn.Conv2d(64, 128, kernel_size=(3, 3), padding='valid'),
-            # nn.Dropout2d(p=0.2),
-            nn.LeakyReLU(negative_slope=0.05, inplace=True),
+            OneDNetInceptionBlock(64, 32, 48, 64, 8, 16, 16),
             nn.AvgPool2d(kernel_size=(1, 3)),
             nn.BatchNorm2d(128),
             nn.Dropout2d(p=0.6),
 
-            nn.Conv2d(128, 256, kernel_size=(1, 3), padding='valid'),
-            # nn.Dropout2d(p=0.2),
-            nn.LeakyReLU(negative_slope=0.05, inplace=True),
+            OneDNetInceptionBlock(128, 64, 96, 128, 16, 32, 32),
             nn.AvgPool2d(kernel_size=(1, 3)),
             nn.BatchNorm2d(256),
             nn.Dropout2d(p=0.6),
 
-            nn.Conv2d(256, 512, kernel_size=(1, 1), padding='valid'),
-            # nn.Dropout2d(p=0.2),
-            nn.LeakyReLU(negative_slope=0.05, inplace=True),
+            OneDNetInceptionBlock(256, 128, 192, 256, 32, 64, 64),
             nn.BatchNorm2d(512),
+            nn.AvgPool2d(kernel_size=(3, 3)),
+            nn.Dropout2d(p=0.6),
+
+            OneDNetInceptionBlock(512, 256, 384, 512, 64, 128, 128),
+            nn.BatchNorm2d(1024),
             nn.Dropout2d(p=0.6),
         )
 
         self.classifier = nn.Sequential(
-            nn.Linear(7168, 250),
+            nn.Linear(3072, 250),
             nn.LeakyReLU(negative_slope=0.05, inplace=True),
             nn.BatchNorm1d(250),
             nn.Dropout(p=0.5),

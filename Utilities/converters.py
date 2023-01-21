@@ -16,7 +16,7 @@ from scipy.signal import decimate
 # The fewer threads you use here, the less memory you need.
 # If you have a lot of memory, you can also increase it, making the normalization process faster.
 # !!!ATTENTION!!!
-THREADS_NORMALIZATION = 2
+THREADS_NORMALIZATION = 1
 
 
 def _normalize_job(cl, cl_data):
@@ -325,4 +325,4 @@ class BiosemiBDFConverter(EEGDataConverter):
 
     CHANNELS_ORDER = [*range(0, 16, 1)]
 
-    DECIMATION_FACTOR = 30
+    DECIMATION_FACTOR = 5

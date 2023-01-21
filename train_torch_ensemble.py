@@ -13,7 +13,7 @@ def main():
     full_dataset = EEGDatasetEnsemble("./DataBDF/Out/Out_train.npy",
                               "./DataBDF/Out/Out_val.npy",
                               "./DataBDF/Out/Out_test.npy",
-                              3, included_channels)
+                              1, included_channels)
     train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
     sampler_train = WeightedRandomSampler(full_dataset.weights_train, len(train_dataset))
     train_data = DataLoader(train_dataset, batch_size=512, num_workers=12, sampler=sampler_train)
@@ -28,11 +28,17 @@ def main():
 
     trainer = Trainer(gpus=-1, callbacks=[TQDMProgressBar(refresh_rate=5),
                                           StochasticWeightAveraging(swa_lrs=1e-2),
-                                          ModelCheckpoint(save_weights_only=False,
+                                          ModelCheckpoint(filename="{epoch}-{val_loss:.2f}-{val_accuracy:.2f}",
+                                                          save_weights_only=False,
                                                           monitor="Val loss",
                                                           save_last=True,
                                                           save_top_k=3,
-                                                          mode='min')],
+                                                          mode='min'),
+                                          ModelCheckpoint(filename="{epoch}-{val_accuracy:.2f}-{val_loss:.2f}",
+                                                          save_weights_only=False,
+                                                          monitor="BinaryAccuracy",
+                                                          save_top_k=3,
+                                                          mode='max')],
                       check_val_every_n_epoch=2, benchmark=True, max_epochs=1000000)
 
     trainer.fit(model, train_data, val_data)
