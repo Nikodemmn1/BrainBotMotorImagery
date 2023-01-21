@@ -325,4 +325,4 @@ class BiosemiBDFConverter(EEGDataConverter):
 
     CHANNELS_ORDER = [*range(0, 16, 1)]
 
-    DECIMATION_FACTOR = 30
+    DECIMATION_FACTOR = 5

@@ -2,7 +2,7 @@ import io
 import pstats
 import torch
 from torch.optim import AdamW
-from torch.nn.functional import nll_loss, dropout2d
+from torch.nn.functional import binary_cross_entropy, dropout2d
 from torch import nn
 from pytorch_lightning import LightningModule
 import torchmetrics
@@ -12,6 +12,7 @@ import random
 from Utilities import augmentations as aug
 import numpy as np
 import cProfile
+import math
 
 
 class OneDNetConvBlock(nn.Module):
@@ -58,11 +59,9 @@ class OneDNetInceptionBlock(nn.Module):
         return concatenated
 
 
-class OneDNetInception(LightningModule):
-    def __init__(self, included_classes, train_indices=None, val_indices=None, test_indices=None):
+class OneDNetEnsemble(LightningModule):
+    def __init__(self, train_indices=None, val_indices=None, test_indices=None):
         super().__init__()
-
-        classes_count = len(included_classes)
 
         self.features = nn.Sequential(
             nn.Conv2d(1, 32, kernel_size=(3, 5), padding='same', padding_mode='circular'),
@@ -109,42 +108,32 @@ class OneDNetInception(LightningModule):
             nn.BatchNorm1d(120),
             nn.Dropout(p=0.5),
 
-            nn.Linear(120, classes_count),
-            nn.LogSoftmax(dim=1)
+            nn.Linear(120, 1),
+            nn.Sigmoid()
         )
 
-        self.accuracy = torchmetrics.Accuracy("multiclass", num_classes=3)
-        self.confusion_matrix70 = torchmetrics.ConfusionMatrix("multiclass", num_classes=3, threshold=0.7)
-        self.confusion_matrix = torchmetrics.ConfusionMatrix("multiclass", num_classes=3)
+        self.accuracy = torchmetrics.Accuracy("binary")
+        self.confusion_matrix_70 = torchmetrics.ConfusionMatrix("binary", threshold=0.7)
+        self.confusion_matrix = torchmetrics.ConfusionMatrix("binary")
         self.indices = (train_indices, val_indices, test_indices)
-        self.class_names = ["left h",
-                            "right h",
-                            "passive",
-                            "left l",
-                            "tongue",
-                            "right l"]
-        self.class_names = [self.class_names[i] for i in included_classes]
 
         self.test_metrics = torchmetrics.MetricCollection(
             [
-                torchmetrics.Accuracy("multiclass", num_classes=3),
-                torchmetrics.Precision(task='multiclass', num_classes=3, average='macro'),
-                torchmetrics.Recall(task='multiclass', num_classes=3, average='macro'),
-                torchmetrics.F1Score(task='multiclass', num_classes=3, average='macro'),
+                torchmetrics.Accuracy("binary"),
+                torchmetrics.Precision("binary"),
+                torchmetrics.Recall("binary"),
+                torchmetrics.F1Score("binary"),
             ]
         )
 
         self.val_metrics = torchmetrics.MetricCollection(
             [
-                torchmetrics.Accuracy("multiclass", num_classes=3),
-                torchmetrics.Precision(task='multiclass', num_classes=3, average='macro'),
-                torchmetrics.Recall(task='multiclass', num_classes=3, average='macro'),
-                torchmetrics.F1Score(task='multiclass', num_classes=3, average='macro'),
+                torchmetrics.Accuracy("binary"),
+                torchmetrics.Precision("binary"),
+                torchmetrics.Recall("binary"),
+                torchmetrics.F1Score("binary"),
             ]
         )
-
-        self.augmenter = Augmenter(perm=True, mag=True, time=True, jitt=True,
-                                   perm_max_seg=5, mag_std=0.2, mag_knot=4, time_std=0.2, time_knot=4, jitt_std=0.03)
 
     def forward(self, x):
         x = self.features(x)
@@ -160,7 +149,7 @@ class OneDNetInception(LightningModule):
     def training_step(self, batch, batch_idx):
         data, label = batch
         output = self(data)
-        loss = nll_loss(output, label)
+        loss = binary_cross_entropy(output, label)
         self.log("Training loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         self.accuracy(output, label)
         self.log("Training accuracy", self.accuracy, on_step=True, on_epoch=False, prog_bar=True)
@@ -169,7 +158,7 @@ class OneDNetInception(LightningModule):
     def validation_step(self, batch, batch_idx):
         data, label = batch
         output = self(data)
-        loss = nll_loss(output, label)
+        loss = binary_cross_entropy(output, label)
         self.log("Val loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         self.val_metrics.update(output, label.type(torch.int))
         return output, label
@@ -178,46 +167,46 @@ class OneDNetInception(LightningModule):
         self.log_dict(self.val_metrics.compute(), on_step=False, on_epoch=True)
         self.val_metrics.reset()
 
-        outputs = torch.cat([torch.max(x[0], 1).indices for x in validation_data])
+        outputs = torch.cat([x[0] for x in validation_data])
         labels = torch.cat([x[1] for x in validation_data])
 
-        conf_matrix = self.confusion_matrix(outputs, labels)
-        conf_matrix70 = self.confusion_matrix70(outputs, labels)
+        conf_matrix = self.confusion_matrix(outputs, labels.type(torch.int))
+        conf_matrix70 = self.confusion_matrix70(outputs, labels.type(torch.int))
 
-        df_cm = pd.DataFrame(conf_matrix.cpu(), index=self.class_names,
-                             columns=[x + " pred" for x in self.class_names])
-        df_cm70 = pd.DataFrame(conf_matrix70.cpu(), index=self.class_names,
-                               columns=[x + " pred" for x in self.class_names])
+        df_cm = pd.DataFrame(conf_matrix.cpu(), index=["false", "true"],
+                             columns=["false pred", "true pred"])
+        df_cm70 = pd.DataFrame(conf_matrix70.cpu(), index=["false", "true"],
+                             columns=["false pred", "true pred"])
 
         sn.set(font_scale=0.7)
-        conf_matrix_figure = sn.heatmap(df_cm, annot=True).get_figure()
-        conf_matrix_figure70 = sn.heatmap(df_cm70, annot=True).get_figure()
+        conf_matrix_figure = sn.heatmap(df_cm, annot=True, vmin=0).get_figure()
+        conf_matrix_figure70 = sn.heatmap(df_cm70, annot=True, vmin=0).get_figure()
         self.logger.experiment.add_figure('Confusion matrix', conf_matrix_figure, self.current_epoch)
         self.logger.experiment.add_figure('Confusion matrix 70% thresh.', conf_matrix_figure70, self.current_epoch)
 
     def test_step(self, batch, batch_idx):
         data, label = batch
         output = self(data)
-        loss = nll_loss(output, label)
+        loss = binary_cross_entropy(output, label)
         self.log("Test loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.test_metrics.update(output, label)
+        self.test_metrics.update(output, label.type(torch.int))
         return output, label
 
     def test_epoch_end(self, test_data):
-        outputs = torch.cat([torch.max(x[0], 1).indices for x in test_data])
+        outputs = torch.cat([x[0] for x in test_data])
         labels = torch.cat([x[1] for x in test_data])
 
-        conf_matrix = self.confusion_matrix(outputs, labels)
-        conf_matrix70 = self.confusion_matrix70(outputs, labels)
+        conf_matrix = self.confusion_matrix(outputs, labels.type(torch.int))
+        conf_matrix70 = self.confusion_matrix70(outputs, labels.type(torch.int))
 
-        df_cm = pd.DataFrame(conf_matrix.cpu(), index=self.class_names,
-                             columns=[x + " pred" for x in self.class_names])
-        df_cm70 = pd.DataFrame(conf_matrix70.cpu(), index=self.class_names,
-                               columns=[x + " pred" for x in self.class_names])
+        df_cm = pd.DataFrame(conf_matrix.cpu(), index=["false", "true"],
+                             columns=["false pred", "true pred"])
+        df_cm70 = pd.DataFrame(conf_matrix70.cpu(), index=["false", "true"],
+                             columns=["false pred", "true pred"])
 
         sn.set(font_scale=0.7)
-        conf_matrix_figure = sn.heatmap(df_cm, annot=True).get_figure()
-        conf_matrix_figure70 = sn.heatmap(df_cm70, annot=True).get_figure()
+        conf_matrix_figure = sn.heatmap(df_cm, annot=True, vmin=0).get_figure()
+        conf_matrix_figure70 = sn.heatmap(df_cm70, annot=True, vmin=0).get_figure()
         self.logger.experiment.add_figure('Confusion matrix TEST', conf_matrix_figure, self.current_epoch)
         self.logger.experiment.add_figure('Confusion matrix TEST 70% thresh.', conf_matrix_figure70, self.current_epoch)
 
@@ -230,51 +219,3 @@ class OneDNetInception(LightningModule):
 
     def on_save_checkpoint(self, checkpoint):
         checkpoint['indices'] = self.indices
-
-    def on_before_batch_transfer(self, batch, dataloader_idx):
-        x, y = batch
-        if self.trainer.training and random.random() < -10:
-            x = np.swapaxes(np.squeeze(x), 1, 2)
-
-            # prof = cProfile.Profile()
-            # prof.enable()
-            ##
-            x = self.augmenter(x)
-            ##
-            # prof.disable()
-            # s = io.StringIO()
-            # sortby = pstats.SortKey.CUMULATIVE
-            # ps = pstats.Stats(prof, stream=s).sort_stats(sortby)
-            # ps.print_stats()
-            # print(s.getvalue())
-
-            x = np.expand_dims(np.swapaxes(x, 1, 2), 1)
-            x = torch.Tensor(x).type(torch.float32)
-        return x, y
-
-class Augmenter(nn.Module):
-    def __init__(self, perm=True, mag=True, time=True, jitt=True,
-                 perm_max_seg=5, mag_std=0.2, mag_knot=4, time_std=0.2, time_knot=4, jitt_std=0.03):
-        super().__init__()
-        self.perm_max_seg = perm_max_seg
-        self.mag_std = mag_std
-        self.mag_knot = mag_knot
-        self.time_std = time_std
-        self.time_knot = time_knot
-        self.jitt_std = jitt_std
-        self.perm = perm
-        self.mag = mag
-        self.time = time
-        self.jitt = jitt
-
-    @torch.no_grad()
-    def forward(self, x):
-        if self.jitt:
-            x = aug.jitter(x, self.jitt_std)
-        if self.perm:
-            x = aug.permutation(x, self.perm_max_seg)
-        if self.mag:
-            x = aug.magnitude_warp(x, self.mag_std, self.mag_knot)
-        if self.time:
-            x = aug.time_warp(x, self.time_std, self.time_knot)
-        return x

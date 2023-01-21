@@ -15,13 +15,10 @@ import cProfile
 import math
 
 class OneDNet(LightningModule):
-    def __init__(self, channel_count, included_classes,
-                 train_indices=None, val_indices=None, test_indices=None):
+    def __init__(self, included_classes, train_indices=None, val_indices=None, test_indices=None):
         super().__init__()
 
         classes_count = len(included_classes)
-
-        self.noise_inject = GaussianNoiseInjector(6, 0.5)
 
         self.features = nn.Sequential(
             nn.Conv2d(1, 32, kernel_size=(3, 5), padding='same', padding_mode='circular'),
@@ -40,7 +37,21 @@ class OneDNet(LightningModule):
             nn.Conv2d(64, 128, kernel_size=(3, 3), padding='valid'),
             # nn.Dropout2d(p=0.2),
             nn.LeakyReLU(negative_slope=0.05, inplace=True),
+            nn.AvgPool2d(kernel_size=(1, 3)),
             nn.BatchNorm2d(128),
+            nn.Dropout2d(p=0.6),
+
+            nn.Conv2d(128, 256, kernel_size=(1, 3), padding='valid'),
+            # nn.Dropout2d(p=0.2),
+            nn.LeakyReLU(negative_slope=0.05, inplace=True),
+            nn.AvgPool2d(kernel_size=(1, 3)),
+            nn.BatchNorm2d(256),
+            nn.Dropout2d(p=0.6),
+
+            nn.Conv2d(256, 512, kernel_size=(1, 1), padding='valid'),
+            # nn.Dropout2d(p=0.2),
+            nn.LeakyReLU(negative_slope=0.05, inplace=True),
+            nn.BatchNorm2d(512),
             nn.Dropout2d(p=0.6),
         )
 
@@ -60,6 +71,7 @@ class OneDNet(LightningModule):
         )
 
         self.accuracy = torchmetrics.Accuracy("multiclass", num_classes=3)
+        self.confusion_matrix70 = torchmetrics.ConfusionMatrix("multiclass", num_classes=3, threshold=0.7)
         self.confusion_matrix = torchmetrics.ConfusionMatrix("multiclass", num_classes=3)
         self.indices = (train_indices, val_indices, test_indices)
         self.class_names = ["left h",
@@ -79,13 +91,20 @@ class OneDNet(LightningModule):
             ]
         )
 
+        self.val_metrics = torchmetrics.MetricCollection(
+            [
+                torchmetrics.Accuracy("multiclass", num_classes=3),
+                torchmetrics.Precision(task='multiclass', num_classes=3, average='macro'),
+                torchmetrics.Recall(task='multiclass', num_classes=3, average='macro'),
+                torchmetrics.F1Score(task='multiclass', num_classes=3, average='macro'),
+            ]
+        )
+
         self.augmenter = Augmenter(perm=True, mag=True, time=True, jitt=True,
                  perm_max_seg=5, mag_std=0.2, mag_knot=4, time_std=0.2, time_knot=4, jitt_std=0.03)
 
     def forward(self, x):
-        # x = self.noise_inject(x)
         x = self.features(x)
-        # print(x.size())
         x = torch.flatten(x, 1)
         x = self.classifier(x)
         if x.size(1) == 1:
@@ -107,26 +126,31 @@ class OneDNet(LightningModule):
     def validation_step(self, batch, batch_idx):
         data, label = batch
         output = self(data)
-        output[0] = 0
-        output[1] = 0
         loss = nll_loss(output, label)
         self.log("Val loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.accuracy(output, label)
-        self.log("Val accuracy", self.accuracy, on_step=False, on_epoch=True, prog_bar=True)
+        self.val_metrics.update(output, label.type(torch.int))
         return output, label
 
     def validation_epoch_end(self, validation_data):
+        self.log_dict(self.val_metrics.compute(), on_step=False, on_epoch=True)
+        self.val_metrics.reset()
+
         outputs = torch.cat([torch.max(x[0], 1).indices for x in validation_data])
         labels = torch.cat([x[1] for x in validation_data])
 
         conf_matrix = self.confusion_matrix(outputs, labels)
+        conf_matrix70 = self.confusion_matrix70(outputs, labels)
 
         df_cm = pd.DataFrame(conf_matrix.cpu(), index=self.class_names,
+                             columns=[x + " pred" for x in self.class_names])
+        df_cm70 = pd.DataFrame(conf_matrix70.cpu(), index=self.class_names,
                              columns=[x + " pred" for x in self.class_names])
 
         sn.set(font_scale=0.7)
         conf_matrix_figure = sn.heatmap(df_cm, annot=True).get_figure()
+        conf_matrix_figure70 = sn.heatmap(df_cm70, annot=True).get_figure()
         self.logger.experiment.add_figure('Confusion matrix', conf_matrix_figure, self.current_epoch)
+        self.logger.experiment.add_figure('Confusion matrix 70% thresh.', conf_matrix_figure70, self.current_epoch)
 
     def test_step(self, batch, batch_idx):
         data, label = batch
@@ -141,14 +165,24 @@ class OneDNet(LightningModule):
         labels = torch.cat([x[1] for x in test_data])
 
         conf_matrix = self.confusion_matrix(outputs, labels)
+        conf_matrix70 = self.confusion_matrix70(outputs, labels)
 
         df_cm = pd.DataFrame(conf_matrix.cpu(), index=self.class_names,
+                             columns=[x + " pred" for x in self.class_names])
+        df_cm70 = pd.DataFrame(conf_matrix70.cpu(), index=self.class_names,
                              columns=[x + " pred" for x in self.class_names])
 
         sn.set(font_scale=0.7)
         conf_matrix_figure = sn.heatmap(df_cm, annot=True).get_figure()
+        conf_matrix_figure70 = sn.heatmap(df_cm70, annot=True).get_figure()
         self.logger.experiment.add_figure('Confusion matrix TEST', conf_matrix_figure, self.current_epoch)
-        self.log_dict(self.test_metrics.compute(), on_step=False, on_epoch=True)
+        self.logger.experiment.add_figure('Confusion matrix TEST 70% thresh.', conf_matrix_figure70, self.current_epoch)
+
+        test_dict_raw = self.test_metrics.compute()
+        test_dict = dict()
+        for key, value in test_dict_raw.items():
+            test_dict[f"{key} Test"] = value
+        self.log_dict(test_dict, on_step=False, on_epoch=True)
         self.test_metrics.reset()
 
     def on_save_checkpoint(self, checkpoint):
@@ -156,7 +190,7 @@ class OneDNet(LightningModule):
 
     def on_before_batch_transfer(self, batch, dataloader_idx):
         x, y = batch
-        if self.trainer.training and random.random() < 0.3:
+        if self.trainer.training and random.random() < -10:
             x = np.swapaxes(np.squeeze(x), 1, 2)
 
             #prof = cProfile.Profile()
@@ -201,25 +235,4 @@ class Augmenter(nn.Module):
             x = aug.magnitude_warp(x, self.mag_std, self.mag_knot)
         if self.time:
             x = aug.time_warp(x, self.time_std, self.time_knot)
-        return x
-
-
-
-class GaussianNoiseInjector(nn.Module):
-    def __init__(self, snr_db, chance):
-        super().__init__()
-        self.snr_db = snr_db
-        self.chance = chance
-
-    def forward(self, x):
-        for b in range(x.shape[0]):
-            if random.random() < self.chance:
-                for ch in range(x.shape[2]):
-                    p_sig = torch.abs(torch.mean(x[b, 0, ch, :]))
-                    power = torch.log10(p_sig) - self.snr_db / 10.0
-                    noise_std = torch.sqrt(torch.pow(10, power))
-                    noise = torch.empty(x.shape[3],
-                                        dtype=torch.float32,
-                                        device=torch.device('cuda')).normal_(mean=0, std=noise_std)
-                    x[b, 0, ch, :] += noise
         return x
