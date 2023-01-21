@@ -31,7 +31,7 @@ if not LOAD:
                 beg = sec * CHANNELS_IN_FILE * SAMPLING_RATE * 3 + ch * SAMPLING_RATE * 3 + sam * 3
                 samples[ch, sec * SAMPLING_RATE + sam, :] = data[beg:beg + 3]
 
-    np.save("testdata", samples)
+    np.save("testdata.npy", samples)
 else:
     samples = np.load("testdata.npy")
 

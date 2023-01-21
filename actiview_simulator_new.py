@@ -38,9 +38,9 @@ if not LOAD:
                     samples[ch, sec * SAMPLING_RATE + sam, :] = data[beg:beg + 3]
         samples_list.append(samples)
     samples_to_save = np.concatenate(samples_list, axis = 1)
-    np.save("testdata_kuba.npy", samples_to_save)
+    np.save("testdata.npy", samples_to_save)
 else:
-    samples = np.load("testdata_kuba.npy")
+    samples = np.load("testdata.npy")
 
 #samples2 = samples[:, :, 0].astype("int32") + samples[:, :, 1].astype("int32") * 256 + samples[:, :, 2].astype(
 #    "int32") * 256 * 256
