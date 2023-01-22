@@ -70,7 +70,7 @@ class OneDNetEnsemble(LightningModule):
         )
 
         self.accuracy = torchmetrics.Accuracy("binary")
-        self.confusion_matrix_70 = torchmetrics.ConfusionMatrix("binary", threshold=0.7)
+        self.confusion_matrix70 = torchmetrics.ConfusionMatrix("binary", threshold=0.7)
         self.confusion_matrix = torchmetrics.ConfusionMatrix("binary")
         self.indices = (train_indices, val_indices, test_indices)
 
@@ -137,8 +137,8 @@ class OneDNetEnsemble(LightningModule):
 
         sn.set(font_scale=0.7)
         conf_matrix_figure = sn.heatmap(df_cm, annot=True, vmin=0).get_figure()
-        conf_matrix_figure70 = sn.heatmap(df_cm70, annot=True, vmin=0).get_figure()
         self.logger.experiment.add_figure('Confusion matrix', conf_matrix_figure, self.current_epoch)
+        conf_matrix_figure70 = sn.heatmap(df_cm70, annot=True, vmin=0).get_figure()
         self.logger.experiment.add_figure('Confusion matrix 70% thresh.', conf_matrix_figure70, self.current_epoch)
 
     def test_step(self, batch, batch_idx):
@@ -163,8 +163,8 @@ class OneDNetEnsemble(LightningModule):
 
         sn.set(font_scale=0.7)
         conf_matrix_figure = sn.heatmap(df_cm, annot=True, vmin=0).get_figure()
-        conf_matrix_figure70 = sn.heatmap(df_cm70, annot=True, vmin=0).get_figure()
         self.logger.experiment.add_figure('Confusion matrix TEST', conf_matrix_figure, self.current_epoch)
+        conf_matrix_figure70 = sn.heatmap(df_cm70, annot=True, vmin=0).get_figure()
         self.logger.experiment.add_figure('Confusion matrix TEST 70% thresh.', conf_matrix_figure70, self.current_epoch)
 
         test_dict_raw = self.test_metrics.compute()

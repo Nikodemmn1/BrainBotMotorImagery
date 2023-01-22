@@ -3,7 +3,7 @@ from Utilities.converters import LargeEEGDataConverter, BiosemiBDFConverter
 conv = BiosemiBDFConverter(["./DataBDF/Snippets/Train",
                             "./DataBDF/Snippets/Val",
                             "./DataBDF/Snippets/Test"],
-                           "./DataBDF/Out")
+                           "./DataBDF/Out30")
 conv.convert_and_save()
 
 #conv = LargeEEGDataConverter(["./DataEEG/Snippets/Train",

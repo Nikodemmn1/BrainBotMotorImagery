@@ -191,8 +191,8 @@ class OneDNetInception(LightningModule):
 
         sn.set(font_scale=0.7)
         conf_matrix_figure = sn.heatmap(df_cm, annot=True).get_figure()
-        conf_matrix_figure70 = sn.heatmap(df_cm70, annot=True).get_figure()
         self.logger.experiment.add_figure('Confusion matrix', conf_matrix_figure, self.current_epoch)
+        conf_matrix_figure70 = sn.heatmap(df_cm70, annot=True).get_figure()
         self.logger.experiment.add_figure('Confusion matrix 70% thresh.', conf_matrix_figure70, self.current_epoch)
 
     def test_step(self, batch, batch_idx):
@@ -217,8 +217,8 @@ class OneDNetInception(LightningModule):
 
         sn.set(font_scale=0.7)
         conf_matrix_figure = sn.heatmap(df_cm, annot=True).get_figure()
-        conf_matrix_figure70 = sn.heatmap(df_cm70, annot=True).get_figure()
         self.logger.experiment.add_figure('Confusion matrix TEST', conf_matrix_figure, self.current_epoch)
+        conf_matrix_figure70 = sn.heatmap(df_cm70, annot=True).get_figure()
         self.logger.experiment.add_figure('Confusion matrix TEST 70% thresh.', conf_matrix_figure70, self.current_epoch)
 
         test_dict_raw = self.test_metrics.compute()

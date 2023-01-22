@@ -1,9 +1,7 @@
 from torch.utils.data import DataLoader, WeightedRandomSampler
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import TQDMProgressBar, StochasticWeightAveraging, ModelCheckpoint
-from Models.OneDNet import OneDNet
-from Models.OneDNetEnsemble import OneDNetEnsemble
-from Models.OneDNetInception import OneDNetInception
+from Models.OneDNetEnsembleInception import OneDNetEnsemble
 from Dataset.dataset_ensemble import *
 
 
@@ -13,7 +11,7 @@ def main():
     full_dataset = EEGDatasetEnsemble("./DataBDF/Out/Out_train.npy",
                               "./DataBDF/Out/Out_val.npy",
                               "./DataBDF/Out/Out_test.npy",
-                              1, included_channels)
+                              2, included_channels)
     train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
     sampler_train = WeightedRandomSampler(full_dataset.weights_train, len(train_dataset))
     train_data = DataLoader(train_dataset, batch_size=512, num_workers=12, sampler=sampler_train)

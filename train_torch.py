@@ -21,17 +21,23 @@ def main():
     model = OneDNet(included_classes, train_dataset.indices,
                     val_dataset.indices, test_dataset.indices)
 
-    #model = OneDNet.load_from_checkpoint(included_classes=included_classes,
-    #                                     checkpoint_path="./lightning_logs/version_75/checkpoints/epoch=144-step=41615.ckpt")
+    #model = OneDNetInception.load_from_checkpoint(included_classes=included_classes,
+    #                                    checkpoint_path="./lightning_logs/version_24/checkpoints/last.ckpt")
 
     trainer = Trainer(gpus=-1, callbacks=[TQDMProgressBar(refresh_rate=5),
                                           StochasticWeightAveraging(swa_lrs=1e-2),
-                                          ModelCheckpoint(save_weights_only=False,
+                                          ModelCheckpoint(filename="{epoch}-{val_loss:.2f}-{val_accuracy:.2f}",
+                                                          save_weights_only=False,
                                                           monitor="Val loss",
                                                           save_last=True,
                                                           save_top_k=3,
-                                                          mode='min')],
-                      check_val_every_n_epoch=5, benchmark=True, max_epochs=1000000)
+                                                          mode='min'),
+                                          ModelCheckpoint(filename="{epoch}-{val_accuracy:.2f}-{val_loss:.2f}",
+                                                          save_weights_only=False,
+                                                          monitor="MulticlassAccuracy",
+                                                          save_top_k=3,
+                                                          mode='max')],
+                      check_val_every_n_epoch=2, benchmark=True, max_epochs=1000000)
 
     trainer.fit(model, train_data, val_data)
 

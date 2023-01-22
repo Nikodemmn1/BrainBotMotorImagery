@@ -24,8 +24,7 @@ class PreConverter:
             self.preconvert_file(i_file_path)
             out_path = f"{self.output_folder}/{basename(i_file_path)}_snippets.pkl"
 
-            self.snippets[3] = self.snippets[3][::3]
-
+            self.snippets[3] = self.snippets[3][::2]
             with open(out_path, 'wb') as handle:
                 pickle.dump(self.snippets, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
