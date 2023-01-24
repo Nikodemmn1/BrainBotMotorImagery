@@ -78,7 +78,7 @@ class UpdateCallback(Callback):
 
 def main():
     #time.sleep(30)
-    load_from_checkpoint = True
+    load_from_checkpoint = False
     included_classes = [0, 1, 2]
     # included_channels = range(16)
     included_channels = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]

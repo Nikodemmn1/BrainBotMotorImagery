@@ -11,9 +11,9 @@ def main():
     #test_merger.merge()
     included_classes = [0, 1, 2]
     included_channels = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-    full_dataset = EEGDataset("./DataBDF/Out/Out_test.npy",
+    full_dataset = EEGDataset("./DataBDF/OutKuba/OutKuba_train.npy",
                               "./DataBDF/Out/Out_test.npy",
-                              "./DataBDF/Out/Out_test.npy",
+                              "./DataBDF/OutKuba/OutKuba_train.npy",
                               included_classes, included_channels)
     # full_dataset = EEGDataset("./DataBDF/Out/Out_train.npy",
     #                           "./DataBDF/Out/Out_val.npy",
@@ -23,7 +23,7 @@ def main():
     test_data = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0)
     model = OneDNet.load_from_checkpoint(channel_count=len(included_channels),
                                          included_classes=included_classes,
-                                         checkpoint_path="./Calibration/lightning_logs/version_4/checkpoints/last.ckpt")
+                                         checkpoint_path="./Calibration/lightning_logs/version_11/checkpoints/epoch=490-step=68489.ckpt")
     # model = torch.load("./model_nikodem.pt")
     trainer = Trainer(gpus=-1)
     trainer.test(model, test_data)

@@ -1,8 +1,12 @@
 from Utilities.converters import LargeEEGDataConverter, BiosemiBDFConverter
 from Utilities.merger import Merger
 
-conv = BiosemiBDFConverter(["./DataBDF/Snippets/KubaTrain/",
-                            "./DataBDF/Snippets/KubaVal/",
+#conv = BiosemiBDFConverter(["./DataBDF/Snippets/KubaTrain/",
+#                            "./DataBDF/Snippets/KubaVal/",
+#                            "./DataBDF/Snippets/KubaTest/"],
+#                           "./DataBDF/OutKuba/")
+conv = BiosemiBDFConverter(["./DataBDF/Snippets/KubaTest/",
+                            "./DataBDF/Snippets/KubaTest/",
                             "./DataBDF/Snippets/KubaTest/"],
                            "./DataBDF/OutKuba/")
 conv.convert_and_save()
