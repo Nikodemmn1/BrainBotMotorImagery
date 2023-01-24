@@ -18,6 +18,10 @@ EDA/charts
 *.npy
 *.npz
 
+#Recordings
+*.bdf
+*.edf
+
 #BrainStudy:
 #Put your data here:
 Data/*

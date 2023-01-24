@@ -18,11 +18,9 @@ def main():
     val_data = DataLoader(val_dataset, batch_size=64, num_workers=0, shuffle=False)
     test_data = DataLoader(test_dataset, batch_size=1, num_workers=0, shuffle=False)
 
-    model = OneDNetEnsemble(train_dataset.indices, val_dataset.indices, test_dataset.indices)
+    #model = OneDNetEnsemble(train_dataset.indices, val_dataset.indices, test_dataset.indices)
 
-    #model = OneDNet.load_from_checkpoint(channel_count=len(included_channels),
-    #                                     included_classes=included_classes,
-    #                                     checkpoint_path="./lightning_logs/version_76/checkpoints/epoch=79-step=22960.ckpt")
+    model = OneDNetEnsemble.load_from_checkpoint(checkpoint_path="./lightning_logs/version_41/checkpoints/last.ckpt")
 
     trainer = Trainer(gpus=-1, callbacks=[TQDMProgressBar(refresh_rate=5),
                                           StochasticWeightAveraging(swa_lrs=1e-2),
@@ -37,7 +35,7 @@ def main():
                                                           monitor="BinaryAccuracy",
                                                           save_top_k=3,
                                                           mode='max')],
-                      check_val_every_n_epoch=2, benchmark=True, max_epochs=1000000)
+                      check_val_every_n_epoch=2, benchmark=True, max_epochs=75)
 
     trainer.fit(model, train_data, val_data)
 
