@@ -27,5 +27,12 @@ class DecisionMaker():
                 return label
         return None
 
+class BinaryDecisionMaker():
+    def __init__(self, priorities, thresholds):
+        self.priorities = priorities
+        self.threshols = thresholds
 
+    def decide(self, decisions):
+        mask = decisions > self.threshols
+        for i in mask
 
