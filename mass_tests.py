@@ -11,9 +11,10 @@ import os
 
 included_classes = [0, 1, 2]
 included_channels = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-DATA_PATH = "/home/nikodem/New_Brainbot/WielkieTesty/Dane"
-MODELS_PATH = "/home/nikodem/New_Brainbot/WielkieTesty/Modele"
-RESULTS_PATH = "/home/nikodem/New_Brainbot/WielkieTesty/Wyniki"
+model_names = ["left", "right", "forward", "noise"]
+DATA_PATH = "/home/administrator3/Brainbot/WielkieTesty/Dane"
+MODELS_PATH = "/home/administrator3/Brainbot/WielkieTesty/Modele"
+RESULTS_PATH = "/home/administrator3/Brainbot/WielkieTesty/Wyniki"
 
 
 tb_logger = TensorBoardLogger(save_dir=os.path.join(RESULTS_PATH, "lightning_logs"))
@@ -74,16 +75,17 @@ def perform_test(model_path, data_path, old_mean_std, new_mean_std, results_path
     trainer = Trainer(gpus=-1)
     test_results = trainer.test(model, test_data, verbose=True)
     test_lines = [f"{key}: {val}\n" for key, val in test_results[0].items()]
-    with open(results_path, 'w') as f:
+    with open(results_path, 'a') as f:
+        if test_type == "two":
+            f.write(f"----------- {model_names[class_id].capitalize()} -----------\n")
         f.writelines(test_lines)
 
 
 def perform_two_tests(main_path, data, base_results_name):
-    model_names = ["left", "right", "forward", "noise"]
     old_mean_std = load_mean_std(os.path.join(main_path, "mean_std.pkl"))
     for data_name in data:
         for class_id, model_name in enumerate(model_names):
-            results_name = f"{base_results_name}{data_name}_{model_name}.txt"
+            results_name = f"{base_results_name}{data_name}.txt"
             results_path = os.path.join(RESULTS_PATH, results_name)
             new_mean_std = load_mean_std(data[data_name]['ms'])
             model_path = os.path.join(main_path, f"{model_name}.ckpt")
