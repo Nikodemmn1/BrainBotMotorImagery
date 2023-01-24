@@ -34,11 +34,11 @@ COMMANDS = {
 
 
 class UDPClient:
-    def __init__(self, server_address="192.168.0.100", port=22221, in_port=3333, buff_size=1024):
+    def __init__(self, server_address="192.168.0.103", port=22221, in_port=3333, buff_size=1024):
         self.SERVER_ADDRESS_PORT = (server_address, port)
         self.BUFFER_SIZE = buff_size
         self.UDP_CLIENT_SOCKET = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-        self.UDP_CLIENT_SOCKET.bind(("192.168.0.101", in_port))
+        self.UDP_CLIENT_SOCKET.bind(("192.168.0.103", in_port))
         self.UDP_CLIENT_SOCKET.recv(buff_size)
         print('Received!')
 
@@ -122,8 +122,13 @@ class Jetson:
         right = self.free_boxes[2]
 
         if command == 'forward':
-            robot.forward(speed)
-            time.sleep(sleep_time)
+            if front:
+                robot.right(speed)
+                time.sleep(0.017)
+                robot.forward(speed)
+                time.sleep(sleep_time)
+            else:
+                print("Przeszkoda akcja nie jest podjęta!!")
         elif command == 'left':
             robot.left(speed)
             time.sleep(sleep_time / 2)
@@ -132,7 +137,6 @@ class Jetson:
             time.sleep(sleep_time / 2)
 
         robot.stop()
-
 
         # if command == 'forward':
         #     if left and front and right:
@@ -181,8 +185,6 @@ class Jetson:
         #         robot.backward(speed)
         #         time.sleep(0.3)
         #         robot.left(speed)
-
-
 
     @staticmethod
     def save_frame(frame):
