@@ -16,6 +16,7 @@ time.sleep(0.2)
 #cap = cv2.VideoCapture(0)
 #ret, frame = cap.read()
 
+path = "../img/"
 frames = ["girl_Gertruda.png","girl_Cukierek.png","girl_Kalwina.jpg","girl_Korona_86.jpg","girl_Milana_11.jpg"
     ,"girl_Mizara.png","girl_Nastia_64.jpg"]
 
@@ -25,7 +26,7 @@ for _ in range(5):
 for img in frames:
     # compress frame
     print(f"Sending frame {img}")
-    frame = cv2.imread(img)
+    frame = cv2.imread(path+img)
     retval, buffer = cv2.imencode(".jpg", frame)
 
     if retval:

@@ -5,7 +5,7 @@ WORDS = 16 * 128
 TCP_AV_ADDRESS = '192.168.0.163'
 TCP_AV_PORT = 8188  # port configured in Activeview
 
-samples = np.load("testdata.npy")
+samples = np.load("../testdata.npy")
 samples = np.transpose(samples, (1, 0, 2, 3)).flatten()
 packets_data = np.reshape(samples, (-1, WORDS * 3))
 

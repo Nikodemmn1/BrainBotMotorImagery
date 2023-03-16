@@ -12,7 +12,7 @@ import time
 
 
 
-image = np.array(Image.open("girl_Gertruda.png"))
+image = np.array(Image.open("../img/girl_Gertruda.png"))
 bytes_array = image.flatten().tobytes()
 
 

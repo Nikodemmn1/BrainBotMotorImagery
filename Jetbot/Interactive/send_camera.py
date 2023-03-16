@@ -43,7 +43,7 @@ import os
 import cv2
 import time
 import numpy as np
-from jetbot import Robot
+from ..jetbot import Robot
 import socket
 import time
 import pickle
