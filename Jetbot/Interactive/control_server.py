@@ -7,6 +7,7 @@ import cv2
 import select
 import asyncio
 import time
+import os
 from pynput import keyboard
 BUFFER_SIZE = 1024
 DATAGRAM_MAX_SIZE = 65540
@@ -46,6 +47,18 @@ KEYS = [False,False,False]
 DEBUG_PRINT = False
 
 
+def find_last_img(path='./img/frame'):
+    biggest_num = 0
+    files = os.listdir(path)
+    if len(files) == 0:
+        return 0
+    for file in files:
+        if file.split('.')[-1] == 'png':
+            num = int(file.split('.')[-2].split('_')[-1])
+            if biggest_num < num:
+                biggest_num = num
+    return biggest_num + 1
+IMG_ITERATOR = find_last_img('./img/frame')
 
 class UDPClient:
     def __init__(self, server_address="192.168.0.145", port=3333, in_port=22221, buff_size=1024):
@@ -177,11 +190,14 @@ class Midas:
 
         if model_type == "DPT_Large" or model_type == "DPT_Hybrid":
             transform = midas_transforms.dpt_transform
+        elif model_type == "DPT_BEiT_L_512":
+            transform = midas_transforms.beit512_transform
         else:
             transform = midas_transforms.small_transform
         return midas, transform, device
 
     def predict(self, img):
+        global IMG_ITERATOR
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         input_batch = self.transform(img).to(self.device)
         with torch.no_grad():
@@ -196,10 +212,16 @@ class Midas:
         if PLOT:
             plt.figure()
             plt.imshow(img)
+            plt.axis('off')
+            plt.imsave(f"./img/frame/frame_{IMG_ITERATOR}.png",img)
             plt.show()
+
             plt.figure()
             plt.imshow(prediction.cpu().numpy())
+            plt.axis('off')
+            plt.imsave(f"./img/pred/pred_{IMG_ITERATOR}.png",prediction.cpu().numpy())
             plt.show()
+            IMG_ITERATOR += 1
         return prediction.cpu().numpy()
 
 class JetsonMock:
