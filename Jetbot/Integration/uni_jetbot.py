@@ -146,12 +146,27 @@ class Jetson:
 
 def reporting_camera_frames():
     conn = FrameClient()
+    i = 0
+    frame_count = 3
+    #while True:
+    #    i += 1
+    #    frame = camera.read()
+    #    if i == frame_count:
+    #        i = 0
+    #        if DEBUG_PRINT:
+    #            print("Sending Frame...")
+    #        conn.send_frame(frame)
+    #        time.sleep(0.2)
+    #    else:
+    #        time.sleep(0.2)
+
     while True:
         frame = camera.read()
         if DEBUG_PRINT:
             print("Sending Frame...")
         conn.send_frame(frame)
-        time.sleep(0.2)
+        time.sleep(0.5)
+
 
 
 def hearken_orders(jetson):

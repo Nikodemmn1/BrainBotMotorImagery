@@ -11,63 +11,10 @@ import os
 from pynput import keyboard
 import threading
 
-BUFFER_SIZE = 1024
-DATAGRAM_MAX_SIZE = 65540
-
-# Connection configuration:
-SERVER_ADDRESS = ("192.168.0.163",22241)
-JETBOT_ADDRESS = ("192.168.0.145", 3333)
-
-
-FRAME_SHAPE = (384, 384, 3)
-
-
-free_boxes = np.array([False, False, False]) # The "resource" that zenazn mentions.
-free_boxes_lock = threading.Lock()
-
-
-frame_count = 3
-# For the small Midas:
-MIN_SAFE_DISTANCE = 7 #500
-# For the beit Midas:
-#MIN_SAFE_DISTANCE = 6000
-
-COMMANDS = {
-    0: 'left',
-    1: 'right',
-    2: 'forward'
-}
-INVCOMMANDS = {
-    'left': 0 ,
-    'right': 1,
-    'forward':2
-}
-
-listener = None
-PLOT = False
-
-
-KEYS = [False,False,False]
-
-# Debug mode:
-DEBUG_PRINT = False
-
-
-def find_last_img(path='./img/frame'):
-    biggest_num = 0
-    files = os.listdir(path)
-    if len(files) == 0:
-        return 0
-    for file in files:
-        if file.split('.')[-1] == 'png':
-            num = int(file.split('.')[-2].split('_')[-1])
-            if biggest_num < num:
-                biggest_num = num
-    return biggest_num + 1
-IMG_ITERATOR = find_last_img('./img/frame')
-
-
 class Midas:
+    PLOT = False
+    frame_count = 3
+    MIN_SAFE_DISTANCE = 7
     RESOLUTION = (384, 384)
     MEAN_PIXEL_COUNT_RATIO = 0.1
     MEAN_PIXEL_COUNT = int(RESOLUTION[0] * 0.35 * RESOLUTION[1] * 0.2 * MEAN_PIXEL_COUNT_RATIO)
@@ -119,7 +66,7 @@ class Midas:
                 mode="bicubic",
                 align_corners=False,
             ).squeeze()
-        if PLOT:
+        if self.PLOT:
             plt.figure()
             plt.imshow(img)
             plt.axis('off')
@@ -153,8 +100,8 @@ class Midas:
         return np.array([left, mid, right])
 
     def update_free_boxes(self):
-        self.avg /= frame_count
-        self.free_boxes = self.avg < MIN_SAFE_DISTANCE
+        self.avg /= self.frame_count
+        self.free_boxes = self.avg < self.MIN_SAFE_DISTANCE
         print(f"Depth prediction:\n"
               f"Distances: left={self.avg[0]} middle={self.avg[1]} right{self.avg[2]}\n"
               f"is_free: left={self.free_boxes[0]} middle={self.free_boxes[1]} right{self.free_boxes[2]}")
@@ -164,18 +111,14 @@ class Midas:
         self.avg = np.array([0., 0., 0.])
         self.free_boxes = np.array([False, False, False])
 
-
-
-
-class JetsonMock:
+class MergeDecisions:
     def __init__(self):
         self.przeszkoda = 0
 
-    def move_robot(self, command):
-        with free_boxes_lock:
-            left  = free_boxes[0]
-            front = free_boxes[1]
-            right = free_boxes[2]
+    def concatinate_decisionNdetection(self, command, free_boxes):
+        left = free_boxes[0]
+        front = free_boxes[1]
+        right = free_boxes[2]
 
         if command == 'forward':
             if self.przeszkoda > 0:
@@ -201,44 +144,27 @@ class JetsonMock:
         else:
             return None
 
-    def get_command(self):
-        # Check for arrow key input
-        if KEYS[2]:
-            print('Up arrow key pressed')
-            return 'forward'
-        elif KEYS[0]:
-            print('Left arrow key pressed')
-            return 'left'
-        elif KEYS[1]:
-            print('Right arrow key pressed')
-            return 'right'
-        return None
-
-    def move(self, command):
-        command = self.move_robot(command)
-        return command
-
-
 class FrameClient:
+    DEBUG_PRINT = False
     BUFFER_SIZE = 1024
     DATAGRAM_MAX_SIZE = 65540
 
-    def __init__(self):
-        self.SERVER_ADDRESS_PORT = SERVER_ADDRESS
+    def __init__(self,SERVER_ADDRESS, SERVER_PORT):
+        self.SERVER_ADDRESS_PORT = (SERVER_ADDRESS, SERVER_PORT)
         self.UDP_CLIENT_SOCKET = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
         self.UDP_CLIENT_SOCKET.bind(self.SERVER_ADDRESS_PORT)
 
     def receive_frame(self):
-        message = self.UDP_CLIENT_SOCKET.recv(DATAGRAM_MAX_SIZE)
+        message = self.UDP_CLIENT_SOCKET.recv(self.DATAGRAM_MAX_SIZE)
         if len(message) < 100:
             frame_info = pickle.loads(message)
             if frame_info:
                 nums_of_packs = frame_info["packs"]
-                if DEBUG_PRINT:
+                if self.DEBUG_PRINT:
                     print(f"New Frame with {nums_of_packs} pack(s)")
 
                 for i in range(nums_of_packs):
-                    message = self.UDP_CLIENT_SOCKET.recv(DATAGRAM_MAX_SIZE)
+                    message = self.UDP_CLIENT_SOCKET.recv(self.DATAGRAM_MAX_SIZE)
                     if i == 0:
                         buffer = message
                     else:
@@ -250,7 +176,7 @@ class FrameClient:
                 frame = cv2.flip(frame, 1)
 
                 if frame is not None and type(frame) == np.ndarray:
-                    if DEBUG_PRINT:
+                    if self.DEBUG_PRINT:
                         print(f"Frame Received")
                     return frame
         return None
@@ -258,131 +184,5 @@ class FrameClient:
     def active_wait(self,seconds=0.2):
         ready = select.select([self.UDP_CLIENT_SOCKET], [], [], 0.2)
         return ready[0]
-
-
-class CommandClient:
-    def __init__(self):
-        self.JETBOT_ADDRESS_PORT = JETBOT_ADDRESS
-        self.UDP_CLIENT_SOCKET = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-
-    def send_command(self, command):
-        message = str.encode(str(command))
-        self.UDP_CLIENT_SOCKET.sendto(message, self.JETBOT_ADDRESS_PORT)
-
-
-def on_press(key):
-    global KEYS
-    global PLOT
-    try:
-        if key == keyboard.Key.up:
-            #print('Up arrow key pressed')
-            KEYS = [False, False, True]
-        elif key == keyboard.Key.down:
-            #print('Down arrow key pressed')
-            KEYS = [False, False, False]
-        elif key == keyboard.Key.left:
-            #print('Left arrow key pressed')
-            KEYS = [True, False, False]
-        elif key == keyboard.Key.right:
-            #print('Right arrow key pressed')
-            KEYS = [False ,True, False]
-        elif key == keyboard.Key.space:
-            PLOT = True
-    except AttributeError:
-        # Ignore keys that don't have an ASCII representation
-        pass
-
-
-def on_release(key):
-    global KEYS
-    global PLOT
-    try:
-        if key == keyboard.Key.up:
-            KEYS = [False,False,False]
-        elif key == keyboard.Key.left:
-            KEYS = [False,False,False]
-        elif key == keyboard.Key.right:
-            KEYS = [False,False,False]
-        elif key == keyboard.Key.space:
-            PLOT = False
-
-    except AttributeError:
-        # Ignore keys that don't have an ASCII representation
-        pass
-
-# Create a keyboard listener that runs in the background
-def CreateKeyboardListener():
-    global listener
-
-    if listener == None:
-        listener = keyboard.Listener(on_press=on_press, on_release=on_release,suppress=True)
-        listener.start()
-
-
-def obstacle_detection():
-    global free_boxes
-    midas = Midas()
-    comm = FrameClient()
-    local_frame_count = 0
-    while True:
-        frame = comm.receive_frame()
-        if frame is None:
-            continue
-        depth_image = midas.predict(frame)
-        if depth_image is None:
-            continue
-        midas.update(depth_image)
-        new_free_boxes = midas.update_free_boxes()
-        if new_free_boxes is None:
-            continue
-        with free_boxes_lock:
-            free_boxes = new_free_boxes
-        midas.reset_values()
-
-        #if comm.active_wait(seconds=0.2):
-        #    frame = comm.receive_frame()
-        #    if frame is None:
-        #        continue
-        #    depth_image = midas.predict(frame)
-        #    if depth_image is None:
-        #        continue
-        #    midas.update(depth_image)
-        #    #local_frame_count += 1
-        #    #if local_frame_count >= frame_count:
-        #        #local_frame_count = 0
-        #    new_free_boxes = midas.update_free_boxes()
-        #    if new_free_boxes is None:
-        #        continue
-        #    with free_boxes_lock:
-        #        free_boxes = new_free_boxes
-        #    midas.reset_values()
-        #    time.sleep(0.05)
-
-
-
-
-if __name__ == '__main__':
-    print("Setting up server...")
-    jetson_mock = JetsonMock()
-    udp_client = CommandClient()
-    CreateKeyboardListener()
-
-    # Start a thread to predict on frames
-    predicting = threading.Thread(target=obstacle_detection)
-    predicting.start()
-    time.sleep(1)
-    print("Server configured")
-
-    while True:
-        time.sleep(0.5)
-        command = jetson_mock.get_command()
-        if command is None: continue
-        # if DEBUG_PRINT:
-        print(f"Capturing command {command}")
-        command = jetson_mock.move(command)
-        if command is None: continue
-        print(f"Sending Command {command}")
-        command_index = INVCOMMANDS[command]
-        udp_client.send_command(command_index)
 
 
