@@ -79,8 +79,8 @@ class Midas:
     def load_model_midas(self):
         print('load_midas')
         # model_t
-        #model_type = "DPT_BEiT_L_512" # MiDaS v3.1 - Large (For highest quality - 3.2023)
-        model_type = "DPT_Large"     # MiDaS v3 - Large     (highest accuracy, slowest inference speed)
+        model_type = "DPT_BEiT_L_512" # MiDaS v3.1 - Large (For highest quality - 3.2023)
+        #model_type = "DPT_Large"     # MiDaS v3 - Large     (highest accuracy, slowest inference speed)
         # model_type = "DPT_Hybrid"   # MiDaS v3 - Hybrid    (medium accuracy, medium inference speed)
         # model_type = "MiDaS_small"  # MiDaS v2.1 - Small   (lowest accuracy, highest inference speed)
 
@@ -128,15 +128,17 @@ class Midas:
             plt.axis('off')
             plt.imsave(f"./img/pred/pred_{IMG_ITERATOR}.png",prediction.cpu().numpy())
             plt.axhline(10,0,1,color='black')
-            plt.axhline(230,0,1,color='black')
-            plt.axvline(22, 0, 1, color='black')
+            plt.axhline(300,0,1,color='black')
+            plt.axvline(52, 0, 1, color='black')
             plt.axvline(112, 0, 1, color='black')
             plt.axvline(272, 0, 1, color='black')
-            plt.axvline(362, 0, 1, color='black')
+            plt.axvline(332, 0, 1, color='black')
             plt.show()
             IMG_ITERATOR += 1
         if CAMERA:
-            cv2.imshow('WebCam', img)
+            pred = prediction.cpu().numpy()
+            pred = (255 * (pred - pred.min()) / (pred.max() - pred.min())).astype(np.uint8)
+            cv2.imshow('WebCam', pred)
             cv2.waitKey(1)
             if cv2.waitKey(25) == ord('q'):
                 return prediction.cpu().numpy()
@@ -144,58 +146,15 @@ class Midas:
 
 
 class MidasInterpreter:
+    MIN_SAFE_DISTANCE_MIN =  7250  #7250   #20 #7000
+    MIN_SAFE_DISTANCE =      7500  #7500  #25 #7500
+    MIN_SAFE_DISTANCE_MEAN = 7400  # 7000 # 21  #6000
     RESOLUTION = (384, 384)
+    GROUP_SIZE = 25 #10
     MEAN_PIXEL_COUNT_RATIO = 0.1
     MEAN_PIXEL_COUNT = int(RESOLUTION[0] * 0.35 * RESOLUTION[1] * 0.2 * MEAN_PIXEL_COUNT_RATIO)
-    Y_BOX_POSITION = (int(RESOLUTION[1] * 0.4), int(RESOLUTION[1] * 0.6))
-    X_BOX_POSITION = (int(RESOLUTION[0] * 0.05), int(RESOLUTION[0] * 0.35), int(RESOLUTION[0] * 0.7), int(RESOLUTION[0] * 0.95))
-
-    def __init__(self):
-        self.avg = np.array([0., 0., 0.])
-        self.free_boxes = np.array([False, False, False])
-
-
-    @staticmethod
-    def mean_biggest_values(array):
-        array = array.flatten()
-        ind = np.argpartition(array, - MidasInterpreter.MEAN_PIXEL_COUNT)[MidasInterpreter.MEAN_PIXEL_COUNT:]
-        return np.average(array[ind])
-
-    def update(self, depth_image):
-        self.avg += self.average(depth_image)
-
-    def average(self, depth_image):
-        left = self.mean_biggest_values(
-            depth_image[self.Y_BOX_POSITION[0]:self.Y_BOX_POSITION[1], self.X_BOX_POSITION[0]:self.X_BOX_POSITION[1]])
-        mid = self.mean_biggest_values(
-            depth_image[self.Y_BOX_POSITION[0]:self.Y_BOX_POSITION[1], self.X_BOX_POSITION[1]:self.X_BOX_POSITION[2]])
-        right = self.mean_biggest_values(
-            depth_image[self.Y_BOX_POSITION[0]:self.Y_BOX_POSITION[1], self.X_BOX_POSITION[2]:self.X_BOX_POSITION[3]])
-        return np.array([left, mid, right])
-
-    def update_free_boxes(self):
-        self.avg /= frame_count
-        self.free_boxes = self.avg < MIN_SAFE_DISTANCE
-        print(f"Depth prediction:\n"
-              f"Distances: left={self.avg[0]} middle={self.avg[1]} right{self.avg[2]}\n"
-              f"is_free: left={self.free_boxes[0]} middle={self.free_boxes[1]} right{self.free_boxes[2]}")
-        return self.free_boxes
-
-    def reset_values(self):
-        self.avg = np.array([0., 0., 0.])
-        self.free_boxes = np.array([False, False, False])
-
-
-class MidasInterpreter2:
-    MIN_SAFE_DISTANCE_MIN =  8300  #7250   #20 #7000
-    MIN_SAFE_DISTANCE =      8600  #7500  #25 #7500
-    MIN_SAFE_DISTANCE_MEAN = 8000  # 7000 # 21  #6000
-    RESOLUTION = (384, 384)
-    GROUP_SIZE = 30 #10
-    MEAN_PIXEL_COUNT_RATIO = 0.1
-    MEAN_PIXEL_COUNT = int(RESOLUTION[0] * 0.35 * RESOLUTION[1] * 0.2 * MEAN_PIXEL_COUNT_RATIO)
-    Y_BOX_POSITION = (10, 230)#330) # split into 10 - 320 - 54
-    X_BOX_POSITION = (22, 112, 272, 362) # split into 22 - 90 - 160 - 90 - 22
+    Y_BOX_POSITION = (10, 300) #230)#330) # split into 10 - 320 - 54
+    X_BOX_POSITION = (52, 112, 272, 332) # split into 22 - 90 - 160 - 90 - 22
 
     def __init__(self):
         self.free_boxes = np.array([False, False, False])
@@ -232,11 +191,11 @@ class MidasInterpreter2:
     def look_for_grouping(array):
         best_mean = 0.0
         count = 0
-        for x in range(0,array.shape[0],MidasInterpreter2.GROUP_SIZE):
-            for y in range(0,array.shape[1],MidasInterpreter2.GROUP_SIZE):
-                grid = array[x:x+MidasInterpreter2.GROUP_SIZE, y:y+MidasInterpreter2.GROUP_SIZE]
+        for x in range(0,array.shape[0],MidasInterpreter.GROUP_SIZE):
+            for y in range(0,array.shape[1],MidasInterpreter.GROUP_SIZE):
+                grid = array[x:x+MidasInterpreter.GROUP_SIZE, y:y+MidasInterpreter.GROUP_SIZE]
                 mean = grid.mean()
-                if mean > MidasInterpreter2.MIN_SAFE_DISTANCE_MIN:
+                if mean > MidasInterpreter.MIN_SAFE_DISTANCE_MIN:
                     count += 1
                 if mean > best_mean:
                     best_mean = mean
@@ -268,10 +227,14 @@ class JetsonMock:
                 print(f"Przeszkoda czekam {self.przeszkoda}")
                 self.przeszkoda -= 1
                 return None
-            if front:
+            if front and left and right:
                 print("Robot jedzie do przodu")
                 self.przeszkoda = 0
                 return 'forward'
+            elif left and not front and not right:
+                return 'left'
+            elif right and not front and not left:
+                return 'right'
             else:
                 print("Przeszkoda akcja nie jest podjęta!! 909090909090909090909090909090909090")
                 self.przeszkoda = 3
@@ -333,24 +296,22 @@ class FrameClient:
                 frame = np.frombuffer(buffer, dtype=np.uint8)
                 frame = frame.reshape(frame.shape[0], 1)
                 frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
-                frame = cv2.flip(frame, 1)
+                #frame = cv2.flip(frame, 1)
 
                 if frame is not None and type(frame) == np.ndarray:
-                    if CAMERA:
-                        cv2.imshow('WebCam', frame)
-                        cv2.waitKey(1)
-                        if cv2.waitKey(25) == ord('q'):
-                            return frame
+                    #if CAMERA:
+                    #    cv2.imshow('WebCam', frame)
+                    #    cv2.waitKey(1)
+                    #    if cv2.waitKey(25) == ord('q'):
+                    #        return frame
                     if DEBUG_PRINT:
                         print(f"Frame Received ")
                     return frame
         return None
 
-
-
-    #def active_wait(self,seconds=0.2):
-    #    ready = select.select([self.UDP_CLIENT_SOCKET], [], [], 0.2)
-    #    return ready[0]
+    def active_wait(self,seconds=0.2):
+        ready = select.select([self.UDP_CLIENT_SOCKET], [], [], 0.2)
+        return ready[0]
 
 
 class CommandClient:
@@ -412,53 +373,14 @@ def CreateKeyboardListener():
         listener.start()
 
 
-def obstacle_detectionOld():
+
+def obstacle_detection():
     global free_boxes
     midas = Midas()
     midas_iterpreter = MidasInterpreter()
     comm = FrameClient()
     local_frame_count = 0
-    while True:
-        frame = comm.receive_frame()
-        if frame is None:
-            continue
-        depth_image = midas.predict(frame)
-        if depth_image is None:
-            continue
-        midas_iterpreter.update(depth_image)
-        new_free_boxes = midas_iterpreter.update_free_boxes()
-        if new_free_boxes is None:
-            continue
-        with free_boxes_lock:
-            free_boxes = new_free_boxes
-        midas_iterpreter.reset_values()
-
-        #if comm.active_wait(seconds=0.2):
-        #    frame = comm.receive_frame()
-        #    if frame is None:
-        #        continue
-        #    depth_image = midas.predict(frame)
-        #    if depth_image is None:
-        #        continue
-        #    midas.update(depth_image)
-        #    #local_frame_count += 1
-        #    #if local_frame_count >= frame_count:
-        #        #local_frame_count = 0
-        #    new_free_boxes = midas.update_free_boxes()
-        #    if new_free_boxes is None:
-        #        continue
-        #    with free_boxes_lock:
-        #        free_boxes = new_free_boxes
-        #    midas.reset_values()
-        #    time.sleep(0.05)
-
-
-def obstacle_detection():
-    global free_boxes
-    midas = Midas()
-    midas_iterpreter = MidasInterpreter2()
-    comm = FrameClient()
-    local_frame_count = 0
+    frame = None
     while True:
         frame = comm.receive_frame()
         if frame is None:
@@ -472,41 +394,9 @@ def obstacle_detection():
         with free_boxes_lock:
             free_boxes = new_free_boxes
 
-        #if comm.active_wait(seconds=0.2):
-        #    frame = comm.receive_frame()
-        #    if frame is None:
-        #        continue
-        #    depth_image = midas.predict(frame)
-        #    if depth_image is None:
-        #        continue
-        #    midas.update(depth_image)
-        #    #local_frame_count += 1
-        #    #if local_frame_count >= frame_count:
-        #        #local_frame_count = 0
-        #    new_free_boxes = midas.update_free_boxes()
-        #    if new_free_boxes is None:
-        #        continue
-        #    with free_boxes_lock:
-        #        free_boxes = new_free_boxes
-        #    midas.reset_values()
-        #    time.sleep(0.05)
-
-
-
-
-
-if __name__ == '__main__':
-    print("Setting up server...")
+def command_control():
     jetson_mock = JetsonMock()
     udp_client = CommandClient()
-    CreateKeyboardListener()
-
-    # Start a thread to predict on frames
-    predicting = threading.Thread(target=obstacle_detection)
-    predicting.start()
-    time.sleep(1)
-    print("Server configured")
-
     while True:
         time.sleep(0.7)
         command = jetson_mock.get_command()
@@ -518,5 +408,32 @@ if __name__ == '__main__':
         print(f"Sending Command {command}")
         command_index = INVCOMMANDS[command]
         udp_client.send_command(command_index)
+
+
+
+def alt_main():
+    print("Setting up server...")
+    CreateKeyboardListener()
+    # Start a thread to predict on frames
+    predicting = threading.Thread(target=command_control)
+    predicting.start()
+    time.sleep(1)
+    print("Server configured")
+    obstacle_detection()
+
+
+
+def main():
+    print("Setting up server...")
+    CreateKeyboardListener()
+    # Start a thread to predict on frames
+    predicting = threading.Thread(target=obstacle_detection)
+    predicting.start()
+    time.sleep(1)
+    print("Server configured")
+    command_control()
+
+if __name__ == '__main__':
+    main()
 
 

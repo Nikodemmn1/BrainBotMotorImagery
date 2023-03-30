@@ -11,11 +11,11 @@ from Server.server_params import *
 from Utilities.decision_making import DecisionMaker
 from Utilities.frame_detection import Midas, MergeDecisions, FrameClient
 
-JETBOT_ADDRESS = '192.168.0.101'
+JETBOT_ADDRESS = '192.168.0.145'
 JETBOT_PORT = 3333
 
-SERVER_ADDRESS = ''
-SERVER_PORT = 2001
+SERVER_ADDRESS = '192.168.0.163'
+SERVER_PORT = 22241
 
 free_boxes = np.array([False, False, False]) # The "resource" that zenazn mentions.
 free_boxes_lock = threading.Lock()
@@ -26,7 +26,7 @@ def create_sockets():
 
     # UDP socket for sending classification results to the client
     udp_server_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    udp_server_sock.bind(('192.168.0.100', 22221))
+    #udp_server_sock.bind((JETBOT_ADDRESS, JETBOT_PORT))
 
     tcp_client_sock.bind(("localhost", TCP_LOCAL_PORT))
     tcp_client_sock.connect((TCP_AV_ADDRESS, TCP_AV_PORT))

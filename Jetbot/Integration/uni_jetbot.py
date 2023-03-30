@@ -99,6 +99,14 @@ class FrameClient:
             if DEBUG_PRINT:
                 print(f"Sent a frame")
 
+    def flush_udp(self):
+         while True:
+              x, _, _ = select.select([self.UDP_CLIENT_SOCKET], [], [], 0.001)
+              if len(x) == 0:
+                    break
+              else:
+                    self.UDP_CLIENT_SOCKET.recv(self.BUFFER_SIZE)
+
 
 class CommandClient:
     BUFFER_SIZE = 1024
@@ -162,13 +170,17 @@ def reporting_camera_frames():
     #        time.sleep(0.2)
 
     while True:
-        time.sleep(0.5)
         frame = camera.read()
-        print(f"Sending Frame... {FRAME_COUNT}")
-        FRAME_COUNT += 1
-        if DEBUG_PRINT:
-            print("Sending Frame...")
-        conn.send_frame(frame)
+        i += 1
+        if i == frame_count:
+            print(f"Sending Frame... {FRAME_COUNT}")
+            FRAME_COUNT += 1
+            if DEBUG_PRINT:
+                print("Sending Frame...")
+            conn.send_frame(frame)
+            conn.flush_udp()
+            i = 0
+            #time.sleep(0.2)
 
 
 
@@ -184,11 +196,7 @@ def hearken_orders(jetson):
             jetson.move(command)
             print(f"Moving {str(command)}")
 
-
-if __name__ == '__main__':
-    # Initialize
-    print('CSI Camera ready? - ', camera.isReady())
-    robot = Robot()
+def main():
     jetson = Jetson()
     # wait a bit for the server to initialize
     time.sleep(7)
@@ -203,3 +211,25 @@ if __name__ == '__main__':
     camera.release()
     del camera
 
+
+def alt_main():
+    jetson = Jetson()
+    # wait a bit for the server to initialize
+    time.sleep(7)
+    # Start a thread to send frames
+    orders = threading.Thread(target=hearken_orders, args=(jetson,))
+    orders.start()
+    # Proceed to listen to the incoming orders - movement commands:
+    reporting_camera_frames()
+
+    # When closing:
+    robot.stop()
+    camera.release()
+    del camera
+
+
+if __name__ == '__main__':
+    # Initialize
+    print('CSI Camera ready? - ', camera.isReady())
+    robot = Robot()
+    alt_main()
