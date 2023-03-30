@@ -17,9 +17,9 @@ print(f"Camera Loaded, frames have shape = {frame.shape}")
 # 384, 384, 3
 
 # Connection configuration:
-SERVER_ADDRESS = ("192.168.0.163", 22241)
+SERVER_ADDRESS = ("192.168.0.163", 22242)
 JETBOT_ADDRESS = ("192.168.0.145", 3333)
-
+FRAME_COUNT = 0
 
 # Debug mode:
 DEBUG_PRINT = False
@@ -145,6 +145,7 @@ class Jetson:
 
 
 def reporting_camera_frames():
+    global FRAME_COUNT
     conn = FrameClient()
     i = 0
     frame_count = 3
@@ -161,11 +162,15 @@ def reporting_camera_frames():
     #        time.sleep(0.2)
 
     while True:
+        time.sleep(0.5)
         frame = camera.read()
+        print(f"Sending Frame... {FRAME_COUNT}")
+        FRAME_COUNT += 1
         if DEBUG_PRINT:
             print("Sending Frame...")
         conn.send_frame(frame)
-        time.sleep(0.5)
+
+
 
 
 

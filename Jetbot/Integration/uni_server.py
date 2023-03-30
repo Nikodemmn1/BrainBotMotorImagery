@@ -15,12 +15,13 @@ BUFFER_SIZE = 1024
 DATAGRAM_MAX_SIZE = 65540
 
 # Connection configuration:
-SERVER_ADDRESS = ("192.168.0.163",22241)
+SERVER_ADDRESS = ("192.168.0.163",22242)
 JETBOT_ADDRESS = ("192.168.0.145", 3333)
 
 
 FRAME_SHAPE = (384, 384, 3)
 
+FRAME_COUNT = 0
 
 free_boxes = np.array([False, False, False]) # The "resource" that zenazn mentions.
 free_boxes_lock = threading.Lock()
@@ -45,6 +46,7 @@ INVCOMMANDS = {
 
 listener = None
 PLOT = False
+CAMERA = True
 
 
 KEYS = [False,False,False]
@@ -68,25 +70,16 @@ IMG_ITERATOR = find_last_img('./img/frame')
 
 
 class Midas:
-    RESOLUTION = (384, 384)
-    MEAN_PIXEL_COUNT_RATIO = 0.1
-    MEAN_PIXEL_COUNT = int(RESOLUTION[0] * 0.35 * RESOLUTION[1] * 0.2 * MEAN_PIXEL_COUNT_RATIO)
-    Y_BOX_POSITION = (int(RESOLUTION[1] * 0.4), int(RESOLUTION[1] * 0.6))
-    X_BOX_POSITION = (int(RESOLUTION[0] * 0.05), int(RESOLUTION[0] * 0.35), int(RESOLUTION[0] * 0.7), int(RESOLUTION[0] * 0.95))
-
     def __init__(self):
         midas, transform, device = self.load_model_midas()
         self.midas = midas
         self.transform = transform
         self.device = device
 
-        self.avg = np.array([0., 0., 0.])
-        self.free_boxes = np.array([False, False, False])
-
     def load_model_midas(self):
         print('load_midas')
         # model_t
-        # model_type = "DPT_BEiT_L_512" # MiDaS v3.1 - Large (For highest quality - 3.2023)
+        #model_type = "DPT_BEiT_L_512" # MiDaS v3.1 - Large (For highest quality - 3.2023)
         model_type = "DPT_Large"     # MiDaS v3 - Large     (highest accuracy, slowest inference speed)
         # model_type = "DPT_Hybrid"   # MiDaS v3 - Hybrid    (medium accuracy, medium inference speed)
         # model_type = "MiDaS_small"  # MiDaS v2.1 - Small   (lowest accuracy, highest inference speed)
@@ -107,8 +100,10 @@ class Midas:
 
     def predict(self, img):
         global IMG_ITERATOR
-        #img = img[30:,:,:]
+        global FRAME_COUNT
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        # img = img[:,:,:]
+        #img = img[:, :, ::-1]
         input_batch = self.transform(img).to(self.device)
         with torch.no_grad():
             prediction = self.midas(input_batch)
@@ -119,6 +114,8 @@ class Midas:
                 mode="bicubic",
                 align_corners=False,
             ).squeeze()
+        print(f"Frame predicted {FRAME_COUNT}")
+        FRAME_COUNT += 1
         if PLOT:
             plt.figure()
             plt.imshow(img)
@@ -130,14 +127,38 @@ class Midas:
             plt.imshow(prediction.cpu().numpy())
             plt.axis('off')
             plt.imsave(f"./img/pred/pred_{IMG_ITERATOR}.png",prediction.cpu().numpy())
+            plt.axhline(10,0,1,color='black')
+            plt.axhline(230,0,1,color='black')
+            plt.axvline(22, 0, 1, color='black')
+            plt.axvline(112, 0, 1, color='black')
+            plt.axvline(272, 0, 1, color='black')
+            plt.axvline(362, 0, 1, color='black')
             plt.show()
             IMG_ITERATOR += 1
+        if CAMERA:
+            cv2.imshow('WebCam', img)
+            cv2.waitKey(1)
+            if cv2.waitKey(25) == ord('q'):
+                return prediction.cpu().numpy()
         return prediction.cpu().numpy()
+
+
+class MidasInterpreter:
+    RESOLUTION = (384, 384)
+    MEAN_PIXEL_COUNT_RATIO = 0.1
+    MEAN_PIXEL_COUNT = int(RESOLUTION[0] * 0.35 * RESOLUTION[1] * 0.2 * MEAN_PIXEL_COUNT_RATIO)
+    Y_BOX_POSITION = (int(RESOLUTION[1] * 0.4), int(RESOLUTION[1] * 0.6))
+    X_BOX_POSITION = (int(RESOLUTION[0] * 0.05), int(RESOLUTION[0] * 0.35), int(RESOLUTION[0] * 0.7), int(RESOLUTION[0] * 0.95))
+
+    def __init__(self):
+        self.avg = np.array([0., 0., 0.])
+        self.free_boxes = np.array([False, False, False])
+
 
     @staticmethod
     def mean_biggest_values(array):
         array = array.flatten()
-        ind = np.argpartition(array, - Midas.MEAN_PIXEL_COUNT)[Midas.MEAN_PIXEL_COUNT:]
+        ind = np.argpartition(array, - MidasInterpreter.MEAN_PIXEL_COUNT)[MidasInterpreter.MEAN_PIXEL_COUNT:]
         return np.average(array[ind])
 
     def update(self, depth_image):
@@ -163,6 +184,71 @@ class Midas:
     def reset_values(self):
         self.avg = np.array([0., 0., 0.])
         self.free_boxes = np.array([False, False, False])
+
+
+class MidasInterpreter2:
+    MIN_SAFE_DISTANCE_MIN =  8300  #7250   #20 #7000
+    MIN_SAFE_DISTANCE =      8600  #7500  #25 #7500
+    MIN_SAFE_DISTANCE_MEAN = 8000  # 7000 # 21  #6000
+    RESOLUTION = (384, 384)
+    GROUP_SIZE = 30 #10
+    MEAN_PIXEL_COUNT_RATIO = 0.1
+    MEAN_PIXEL_COUNT = int(RESOLUTION[0] * 0.35 * RESOLUTION[1] * 0.2 * MEAN_PIXEL_COUNT_RATIO)
+    Y_BOX_POSITION = (10, 230)#330) # split into 10 - 320 - 54
+    X_BOX_POSITION = (22, 112, 272, 362) # split into 22 - 90 - 160 - 90 - 22
+
+    def __init__(self):
+        self.free_boxes = np.array([False, False, False])
+
+    def find_obstacles(self,depth_image):
+        self.free_boxes = np.array([False, False, False])
+        left_part = depth_image[self.Y_BOX_POSITION[0]:self.Y_BOX_POSITION[1], self.X_BOX_POSITION[0]:self.X_BOX_POSITION[1]]
+        mid_part = depth_image[self.Y_BOX_POSITION[0]:self.Y_BOX_POSITION[1], self.X_BOX_POSITION[1]:self.X_BOX_POSITION[2]]
+        right_part = depth_image[self.Y_BOX_POSITION[0]:self.Y_BOX_POSITION[1], self.X_BOX_POSITION[2]:self.X_BOX_POSITION[3]]
+
+        left_depth, left_count = self.look_for_grouping(left_part)
+        mid_depth, mid_count = self.look_for_grouping(mid_part)
+        right_depth, right_count = self.look_for_grouping(right_part)
+
+        left_average =  self.mean_biggest_values(left_part)
+        mid_average =  self.mean_biggest_values(mid_part)
+        right_average =  self.mean_biggest_values(right_part)
+
+        left_free = left_depth < self.MIN_SAFE_DISTANCE and left_count < 10 and left_average < self.MIN_SAFE_DISTANCE_MEAN
+        mid_free = mid_depth < self.MIN_SAFE_DISTANCE and mid_count < 10 and mid_average < self.MIN_SAFE_DISTANCE_MEAN
+        right_free = right_depth < self.MIN_SAFE_DISTANCE and right_count < 10 and right_average < self.MIN_SAFE_DISTANCE_MEAN
+
+        print(f"Depth prediction:\n"
+              f"Mean Distances: left={left_average} middle={mid_average} right{right_average}\n"
+              f"Max Distances: left={left_depth} middle={mid_depth} right{right_depth}\n"
+              f"Distances Count: left={left_count} middle={mid_count} right{right_count}\n"
+              f"is_free: left={left_free} middle={mid_free} right{right_free}")
+
+        self.free_boxes = np.array([left_free, mid_free, right_free])
+        return self.free_boxes
+
+
+    @staticmethod
+    def look_for_grouping(array):
+        best_mean = 0.0
+        count = 0
+        for x in range(0,array.shape[0],MidasInterpreter2.GROUP_SIZE):
+            for y in range(0,array.shape[1],MidasInterpreter2.GROUP_SIZE):
+                grid = array[x:x+MidasInterpreter2.GROUP_SIZE, y:y+MidasInterpreter2.GROUP_SIZE]
+                mean = grid.mean()
+                if mean > MidasInterpreter2.MIN_SAFE_DISTANCE_MIN:
+                    count += 1
+                if mean > best_mean:
+                    best_mean = mean
+        return best_mean, count
+
+    @staticmethod
+    def mean_biggest_values(array):
+        pixel_count = int(array.shape[0]* array.shape[1] * 0.1)
+        array = array.flatten()
+        ind = np.argpartition(array, - pixel_count)[pixel_count:]
+        return np.average(array[ind])
+
 
 
 
@@ -250,14 +336,21 @@ class FrameClient:
                 frame = cv2.flip(frame, 1)
 
                 if frame is not None and type(frame) == np.ndarray:
+                    if CAMERA:
+                        cv2.imshow('WebCam', frame)
+                        cv2.waitKey(1)
+                        if cv2.waitKey(25) == ord('q'):
+                            return frame
                     if DEBUG_PRINT:
-                        print(f"Frame Received")
+                        print(f"Frame Received ")
                     return frame
         return None
 
-    def active_wait(self,seconds=0.2):
-        ready = select.select([self.UDP_CLIENT_SOCKET], [], [], 0.2)
-        return ready[0]
+
+
+    #def active_wait(self,seconds=0.2):
+    #    ready = select.select([self.UDP_CLIENT_SOCKET], [], [], 0.2)
+    #    return ready[0]
 
 
 class CommandClient:
@@ -319,9 +412,10 @@ def CreateKeyboardListener():
         listener.start()
 
 
-def obstacle_detection():
+def obstacle_detectionOld():
     global free_boxes
     midas = Midas()
+    midas_iterpreter = MidasInterpreter()
     comm = FrameClient()
     local_frame_count = 0
     while True:
@@ -331,13 +425,52 @@ def obstacle_detection():
         depth_image = midas.predict(frame)
         if depth_image is None:
             continue
-        midas.update(depth_image)
-        new_free_boxes = midas.update_free_boxes()
+        midas_iterpreter.update(depth_image)
+        new_free_boxes = midas_iterpreter.update_free_boxes()
         if new_free_boxes is None:
             continue
         with free_boxes_lock:
             free_boxes = new_free_boxes
-        midas.reset_values()
+        midas_iterpreter.reset_values()
+
+        #if comm.active_wait(seconds=0.2):
+        #    frame = comm.receive_frame()
+        #    if frame is None:
+        #        continue
+        #    depth_image = midas.predict(frame)
+        #    if depth_image is None:
+        #        continue
+        #    midas.update(depth_image)
+        #    #local_frame_count += 1
+        #    #if local_frame_count >= frame_count:
+        #        #local_frame_count = 0
+        #    new_free_boxes = midas.update_free_boxes()
+        #    if new_free_boxes is None:
+        #        continue
+        #    with free_boxes_lock:
+        #        free_boxes = new_free_boxes
+        #    midas.reset_values()
+        #    time.sleep(0.05)
+
+
+def obstacle_detection():
+    global free_boxes
+    midas = Midas()
+    midas_iterpreter = MidasInterpreter2()
+    comm = FrameClient()
+    local_frame_count = 0
+    while True:
+        frame = comm.receive_frame()
+        if frame is None:
+            continue
+        depth_image = midas.predict(frame)
+        if depth_image is None:
+            continue
+        new_free_boxes = midas_iterpreter.find_obstacles(depth_image)
+        if new_free_boxes is None:
+            continue
+        with free_boxes_lock:
+            free_boxes = new_free_boxes
 
         #if comm.active_wait(seconds=0.2):
         #    frame = comm.receive_frame()
@@ -361,6 +494,7 @@ def obstacle_detection():
 
 
 
+
 if __name__ == '__main__':
     print("Setting up server...")
     jetson_mock = JetsonMock()
@@ -374,7 +508,7 @@ if __name__ == '__main__':
     print("Server configured")
 
     while True:
-        time.sleep(0.5)
+        time.sleep(0.7)
         command = jetson_mock.get_command()
         if command is None: continue
         # if DEBUG_PRINT:

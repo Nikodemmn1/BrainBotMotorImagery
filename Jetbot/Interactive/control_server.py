@@ -106,7 +106,12 @@ class UDPClient:
                 frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
                 frame = cv2.flip(frame, 1)
 
+
                 if frame is not None and type(frame) == np.ndarray:
+                    cv2.imshow('WebCam', frame)
+                    cv2.waitKey(1)
+                    if cv2.waitKey(25) == ord('q'):
+                        return frame
                     if DEBUG_PRINT:
                         print(f"Frame Recieved")
                     return frame
@@ -158,9 +163,13 @@ class TCPClient:
 
         frame = np.array(received_array).reshape(FRAME_SHAPE)
         # to see the frames uncomment:
-        plt.figure()
-        plt.imshow(frame)
-        plt.show()
+        #plt.figure()
+        #plt.imshow(frame)
+        #plt.show()
+        cv2.imshow('WebCam', frame)
+        cv2.waitKey(1)
+        if cv2.waitKey(25) == ord('q'):
+            return frame
         return frame
 
     def __del__(self):
