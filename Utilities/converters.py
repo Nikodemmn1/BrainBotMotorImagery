@@ -32,6 +32,9 @@ def _normalize_job(cl, cl_data):
     mean = running_stats.mean()
     std = running_stats.standard_deviation()
 
+    del cl_data
+    gc.collect()
+
     return cl, mean, std
 
 
@@ -144,6 +147,8 @@ class EEGDataConverter:
             if len(self.converted_data[dset]) > 0:
                 self.converted_data[dset] = np.dstack(self.converted_data[dset]).astype('float32').transpose((2, 0, 1))
                 gc.collect()
+                np.save(f"gowno{dset}.npy", np.array(self.converted_data[dset]), allow_pickle=False, fix_imports=False)
+                np.save(f"gownolabel{dset}.npy",self.labels[dset], allow_pickle=True, fix_imports=False)
 
         print("Convertion complete, proceeding with normalization...")
 
@@ -325,4 +330,4 @@ class BiosemiBDFConverter(EEGDataConverter):
 
     CHANNELS_ORDER = [*range(0, 16, 1)]
 
-    DECIMATION_FACTOR = 10
+    DECIMATION_FACTOR = 30

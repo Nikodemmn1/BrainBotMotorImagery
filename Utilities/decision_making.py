@@ -28,4 +28,26 @@ class DecisionMaker():
         return None
 
 
+class BinaryDecisionMaker:
+    def __init__(self, window_length, thresholds, noise_stop):
+        self.window_length = window_length
+        self.thresholds = thresholds
+        self.data = np.zeros((window_length, 4))
+        self.decisions = np.zeros(len(thresholds))
+        self.average_decision = np.zeros(len(thresholds))
+        self.noise_stop = noise_stop
+
+    def add_data(self, decision):
+        self.data = np.roll(self.data, 1, axis=0)
+        self.data[0, :] = decision
+
+    def decide(self):
+        self.average_decision = self.data.mean(axis=0)
+        if self.noise_stop and self.average_decision[3] >= self.thresholds[3]:
+            return None
+        over_thresholds = self.average_decision - self.thresholds
+        if (over_thresholds >= 0.0).any():
+            return np.argmax(over_thresholds)
+        return None
+
 
