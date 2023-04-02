@@ -29,5 +29,10 @@ DataBDF/*
 DataMerged/*
 #Runs (Training Log):
 Models/checkpoints/*
+Modele*
+*.pt
+*.ckpt
 *.png
 *.jpg
+*.zip
+
