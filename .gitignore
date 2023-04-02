@@ -18,6 +18,10 @@ EDA/charts
 *.npy
 *.npz
 
+#Recordings
+*.bdf
+*.edf
+
 #BrainStudy:
 #Put your data here:
 Data/*
@@ -25,3 +29,10 @@ DataBDF/*
 DataMerged/*
 #Runs (Training Log):
 Models/checkpoints/*
+Modele*
+*.pt
+*.ckpt
+*.png
+*.jpg
+*.zip
+

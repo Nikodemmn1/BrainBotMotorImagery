@@ -1,6 +1,7 @@
-jetson@192.168.0.240
+jetson@192.168.0.145
 jetson
 cd Documents/jetbot-master/notebooks/collision_avoidance/
+python3 move_jetbot_solo.py
 
 
 scp ./move_jetbot.py jetson@192.168.0.240:/home/jetson/Documents/jetbot-master/notebooks/collision_avoidance
