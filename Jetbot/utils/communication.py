@@ -45,6 +45,9 @@ class FrameClient:
         ready = select.select([self.UDP_CLIENT_SOCKET], [], [], seconds)
         return ready[0]
 
+    def __del__(self):
+        self.UDP_CLIENT_SOCKET.close()
+
 
 class CommandClient:
     def __init__(self, jetbot_address_port):
@@ -54,3 +57,6 @@ class CommandClient:
     def send_command(self, command):
         message = str.encode(str(command))
         self.UDP_CLIENT_SOCKET.sendto(message, self.JETBOT_ADDRESS_PORT)
+
+    def __del__(self):
+        self.UDP_CLIENT_SOCKET.close()

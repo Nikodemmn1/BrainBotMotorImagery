@@ -1,4 +1,4 @@
-jetson@192.168.0.145
+jetson@192.168.0.333
 jetson
 cd Documents/jetbot-master/notebooks/collision_avoidance/
 python3 move_jetbot_solo.py
