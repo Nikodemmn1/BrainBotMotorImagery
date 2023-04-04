@@ -14,21 +14,21 @@ listener = None
 
 
 # Connection configuration:
-SERVER_ADDRESS = ("192.168.0.103", 22243)
-JETBOT_ADDRESS = ("192.168.0.105", 3333)
+SERVER_ADDRESS = ("192.168.0.163", 22243)
+JETBOT_ADDRESS = ("192.168.0.145", 3333)
 
 FRAME_COUNT = 0
 IMG_ITERATOR = cfg.find_last_img(cfg.RESOURCES_PATH+'/frame')
 
 
-def obstacle_detection():
+def obstacle_detection(server_address=SERVER_ADDRESS):
     global free_boxes
     global IMG_ITERATOR
     global FRAME_COUNT
     global PLOT
     midas = Midas(CAMERA=True)
     midas_iterpreter = MidasInterpreter()
-    comm = FrameClient(SERVER_ADDRESS)
+    comm = FrameClient(server_address)
     local_frame_count = 0
     frame = None
     while True:
@@ -44,9 +44,9 @@ def obstacle_detection():
         with free_boxes_lock:
             free_boxes = new_free_boxes
 
-def command_control():
+def command_control(jetbot_address=JETBOT_ADDRESS):
     decision_merger = DecisionMerger()
-    udp_client = CommandClient(JETBOT_ADDRESS)
+    udp_client = CommandClient(jetbot_address)
     while True:
         time.sleep(0.7)
         command = get_command()
