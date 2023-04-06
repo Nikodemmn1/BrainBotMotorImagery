@@ -6,7 +6,7 @@ FRAME_COUNT = 0
 COMMANDS = {
     0: 'left',
     1: 'right',
-    2: 'forward'
+    2: 'forward',
 }
 INVCOMMANDS = {
     'left': 0 ,

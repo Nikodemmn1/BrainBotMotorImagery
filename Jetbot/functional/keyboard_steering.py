@@ -14,8 +14,8 @@ listener = None
 
 
 # Connection configuration:
-SERVER_ADDRESS = ("192.168.0.163", 22243)
-JETBOT_ADDRESS = ("192.168.0.145", 3333)
+SERVER_ADDRESS = ("192.168.0.100", 22243)
+JETBOT_ADDRESS = ("192.168.0.103", 3333)
 
 FRAME_COUNT = 0
 IMG_ITERATOR = cfg.find_last_img(cfg.RESOURCES_PATH+'/frame')

@@ -56,7 +56,6 @@ def main():
     buffer_mean_dc = np.zeros((CHANNELS, MEAN_PERIOD_LEN))
 
     model = load_model()
-    model_left, model_right, model_relax, model_noise = load_model()
     mean_std = load_mean_std()
 
     sec_res = np.zeros(3)

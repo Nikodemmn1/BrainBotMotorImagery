@@ -17,8 +17,8 @@ print(f"Camera Loaded, frames have shape = {frame.shape}")
 # 384, 384, 3
 
 # Connection configuration:
-SERVER_ADDRESS = ("192.168.0.163", 22243)
-JETBOT_ADDRESS = ("192.168.0.145", 3333)
+SERVER_ADDRESS = ("192.168.0.100", 22243)
+JETBOT_ADDRESS = ("192.168.0.103", 3333)
 FRAME_COUNT = 0
 
 # Debug mode:

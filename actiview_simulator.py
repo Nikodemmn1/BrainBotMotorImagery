@@ -15,7 +15,7 @@ if not LOAD:
     CHANNELS_IN_FILE = 17  # with triggers
     HEADER_LENGTH = 256 * (CHANNELS_IN_FILE + 1)
     SAMPLING_RATE = 2048
-    DATA_PATH = "DataBDF/RawKubaTest/"
+    DATA_PATH = "DataBDF/"
     FILE_PATHS = os.listdir(DATA_PATH)
     samples_list = []
     for file_path in FILE_PATHS:

@@ -9,13 +9,17 @@ import time
 import threading
 from Server.server_params import *
 from Utilities.decision_making import DecisionMaker
-from Utilities.frame_detection import Midas, MergeDecisions, FrameClient
+from Jetbot.utils.midas_detection import Midas, MidasInterpreter, DecisionMerger
+from Jetbot.utils.communication import FrameClient, CommandClient
+from Jetbot.utils.configuration import COMMANDS, INVCOMMANDS
 
-JETBOT_ADDRESS = '192.168.0.145'
+JETBOT_ADDRESS = '192.168.0.103'
 JETBOT_PORT = 3333
 
-SERVER_ADDRESS = '192.168.0.163'
-SERVER_PORT = 22241
+SERVER_ADDRESS = '192.168.0.100'
+SERVER_PORT = 22243
+
+COMMAND_SERVING_PORT = 22242
 
 free_boxes = np.array([False, False, False]) # The "resource" that zenazn mentions.
 free_boxes_lock = threading.Lock()
@@ -23,15 +27,12 @@ free_boxes_lock = threading.Lock()
 def create_sockets():
     # TCP Socket for receiving data from Actiview
     tcp_client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tcp_client_sock.bind(("localhost", TCP_LOCAL_PORT))
+    tcp_client_sock.connect((TCP_AV_ADDRESS, TCP_AV_PORT))
 
     # UDP socket for sending classification results to the client
     udp_server_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    #udp_server_sock.bind((JETBOT_ADDRESS, JETBOT_PORT))
-
-    tcp_client_sock.bind(("localhost", TCP_LOCAL_PORT))
-    tcp_client_sock.connect((TCP_AV_ADDRESS, TCP_AV_PORT))
-    #udp_server_sock.bind((UDP_IP_ADDRESS, UDP_PORT))
-    #udp_server_sock.connect((JETBOT_ADDRESS, JETBOT_PORT))
+    udp_server_sock.bind((SERVER_ADDRESS, COMMAND_SERVING_PORT))
 
     return tcp_client_sock, udp_server_sock
 
@@ -54,23 +55,22 @@ kierunki = {'0' : 'lewo', '1': 'prawo', '2':'prosto', 'None':'None'}
 
 def obstacle_detection():
     global free_boxes
-    midas = Midas()
-    comm = FrameClient()
-    local_frame_count = 0
+    midas = Midas(CAMERA=True)
+    midas_iterpreter = MidasInterpreter()
+    comm = FrameClient((SERVER_ADDRESS,SERVER_PORT))
+    frame = None
     while True:
         frame = comm.receive_frame()
         if frame is None:
             continue
-        depth_image = midas.predict(frame)
+        depth_image = midas.predict(frame,False,0,0)
         if depth_image is None:
             continue
-        midas.update(depth_image)
-        new_free_boxes = midas.update_free_boxes()
+        new_free_boxes = midas_iterpreter.find_obstacles(depth_image)
         if new_free_boxes is None:
             continue
         with free_boxes_lock:
             free_boxes = new_free_boxes
-        midas.reset_values()
 
 
 
@@ -86,7 +86,6 @@ def main():
     buffer_mean_dc = np.zeros((CHANNELS, MEAN_PERIOD_LEN))
 
     model = load_model()
-    model_left, model_right, model_relax, model_noise = load_model()
     mean_std = load_mean_std()
 
     sec_res = np.zeros(3)
@@ -103,7 +102,7 @@ def main():
     # Start a thread to predict on frames
     predicting = threading.Thread(target=obstacle_detection)
     predicting.start()
-    decision_merger = MergeDecisions()
+    decision_merger = DecisionMerger()
 
     while True:
         # Decoding the received packet from ActiView
@@ -147,10 +146,11 @@ def main():
                         decision_ignored = decision
                     print(f"Decision: {kierunki[decision]}")
                     print(decision_maker.decisions_masks)
-                    with free_boxes_lock:
-                        decision = decision_merger.concatinate_decisionNdetection(decision,free_boxes)
-                    if decision is not None or decision != 'None':
-                        bytes_to_send = str.encode(decision)
+                    if decision is not None and decision != 'None':
+                        with free_boxes_lock:
+                            decision = decision_merger.merge(COMMANDS[int(decision)],free_boxes)
+                    if decision is not None and decision != 'None':
+                        bytes_to_send = str.encode(str(INVCOMMANDS[decision]))
                         udp_server_sock.sendto(bytes_to_send, (JETBOT_ADDRESS, JETBOT_PORT))
                 time_start = time.time()
                 prev_decision = decision
