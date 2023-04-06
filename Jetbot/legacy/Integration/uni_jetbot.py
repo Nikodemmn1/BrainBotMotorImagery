@@ -53,7 +53,7 @@ COMMANDS = {
 
 class FrameClient:
     BUFFER_SIZE = 1024
-    MAX_LENGTH_FRAME = 65540
+    MAX_LENGTH_FRAME = 65500
 
     def __init__(self):
         print("Connecting to Server...")

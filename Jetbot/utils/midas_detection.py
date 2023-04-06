@@ -90,7 +90,7 @@ class MidasInterpreter:
     BOK_GROUP = 7
 
     GROUP_SIZE = 10
-    RESOLUTION = (384, 384)
+    RESOLUTION = (512,512) #(384, 384)
     MEAN_PIXEL_COUNT_RATIO = 0.1
     MEAN_PIXEL_COUNT = int(RESOLUTION[0] * 0.35 * RESOLUTION[1] * 0.2 * MEAN_PIXEL_COUNT_RATIO)
     Y_BOX_POSITION = (10, 300) #230)#330) # split into 10 - 320 - 54

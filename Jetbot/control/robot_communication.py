@@ -17,7 +17,7 @@ COMMANDS = {
 
 class FrameClient:
     BUFFER_SIZE = 1024
-    MAX_LENGTH_FRAME = 65540
+    MAX_LENGTH_FRAME = 65500
 
     def __init__(self,server_address):
         print("Connecting to Server...")
@@ -35,6 +35,10 @@ class FrameClient:
             num_of_packs = 1
             if buffer_size > self.MAX_LENGTH_FRAME:
                 num_of_packs = math.ceil(buffer_size / self.MAX_LENGTH_FRAME)
+
+            #print(f"Packs: {str(num_of_packs)}")
+            #print(f"Size: {len(buffer)}")
+
 
             frame_info = {"packs": num_of_packs}
 
