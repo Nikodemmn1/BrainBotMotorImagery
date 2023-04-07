@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
-
+import random
 import Jetbot.utils.configuration as cfg
 
 class Midas:
@@ -90,7 +90,7 @@ class MidasInterpreter:
     BOK_GROUP = 7
 
     GROUP_SIZE = 10
-    RESOLUTION = (512,512) #(384, 384)
+    RESOLUTION = (384,384) #(384, 384)
     MEAN_PIXEL_COUNT_RATIO = 0.1
     MEAN_PIXEL_COUNT = int(RESOLUTION[0] * 0.35 * RESOLUTION[1] * 0.2 * MEAN_PIXEL_COUNT_RATIO)
     Y_BOX_POSITION = (10, 300) #230)#330) # split into 10 - 320 - 54
@@ -190,11 +190,12 @@ class DecisionMerger:
         right = free_boxes[2]
 
         if command == 'forward':
-            if self.przeszkoda > 0:
-                print(f"Przeszkoda czekam {self.przeszkoda}")
-                self.przeszkoda -= 1
-                return None
-            if front and left and right:
+            # if self.przeszkoda > 0:
+            #     print(f"Przeszkoda czekam midas_detection {self.przeszkoda}")
+            #     self.przeszkoda -= 1
+            #     return None
+            # if front and left and right:
+            if front:
                 print("Robot jedzie do przodu")
                 self.przeszkoda = 0
                 return 'forward'
@@ -203,13 +204,15 @@ class DecisionMerger:
             elif right and not front and not left:
                 return 'right'
             elif left and front and not right:
-                return 'left'
+                return 'front'
             elif right and front and not left:
-                return 'right'
+                return 'front'
             else:
-                print("Przeszkoda akcja nie jest podjęta!! 909090909090909090909090909090909090")
-                self.przeszkoda = 3
-                return None
+                # return random.choice(['left', 'right'])
+                return 'right'
+                # print("Przeszkoda akcja nie jest podjęta!! 909090909090909090909090909090909090")
+                # self.przeszkoda = 3
+                # return None
         elif command == 'left':
             print("Robot skreca w lewo")
             self.przeszkoda = 0

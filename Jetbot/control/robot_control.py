@@ -9,7 +9,7 @@
 # First load the robot's camera
 # Sometimes it doesn't work - then restart
 import nanocamera as nano
-RESOLUTION = (512,512) #(384, 384)
+RESOLUTION = (384,384) #(384, 384)
 camera = nano.Camera(flip=0, width=RESOLUTION[0], height=RESOLUTION[1], fps=10)
 frame = camera.read()
 
