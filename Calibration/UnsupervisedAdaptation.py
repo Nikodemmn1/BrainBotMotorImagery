@@ -1,17 +1,14 @@
 from torch.utils.data import DataLoader
+from Models.OneDNet import OneDNet
+from Dataset.dataset import *
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import TQDMProgressBar, StochasticWeightAveraging, ModelCheckpoint
-from Models.OneDNet import OneDNet
-from Models.OneDNetInception import OneDNetInception
-from Dataset.dataset import *
-
-
 def main():
     included_classes = [0, 1, 2]
     included_channels = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     full_dataset = EEGDataset("./DataBDF/OutKuba/OutKuba_train.npy",
-                              "DataBDF/OutKuba/OutKuba_val.npy",
-                              "DataBDF/OutKuba/OutKuba_test.npy",
+                              "./DataBDF/OutNikodem/OutKuba_val.npy",
+                              "./DataBDF/OutNikodem/OutKuba_test.npy",
                               included_classes, included_channels)
     train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
     train_data = DataLoader(train_dataset, batch_size=512, shuffle=True, num_workers=8)
@@ -20,9 +17,6 @@ def main():
 
     model = OneDNet(included_classes, train_dataset.indices,
                     val_dataset.indices, test_dataset.indices)
-
-    #model = OneDNetInception.load_from_checkpoint(included_classes=included_classes,
-    #                                    checkpoint_path="./lightning_logs/version_24/checkpoints/last.ckpt")
 
     trainer = Trainer(gpus=-1, callbacks=[TQDMProgressBar(refresh_rate=5),
                                           StochasticWeightAveraging(swa_lrs=1e-2),
@@ -39,10 +33,6 @@ def main():
                                                           mode='max')],
                       check_val_every_n_epoch=2, benchmark=True, max_epochs=1000000)
 
-    trainer.fit(model, train_data, val_data)
-
-    trainer.test(model, test_data)
-
-
+    trainer.test(model, train_data)
 if __name__ == "__main__":
     main()

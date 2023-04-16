@@ -8,9 +8,9 @@ from Dataset.dataset import *
 import torch
 
 RENORMALIZATION = False
-TEST_DATA_PATH = "./DataBDF/Out/Out_test.npy"
-TRAIN_MEAN_STD_PATH = "./DataBDF/Out/Out_mean_std.pkl"
-TEST_MEAN_STD_PATH = "./DataBDF/Out/Out_mean_std.pkl"
+TEST_DATA_PATH = "DataBDF/OutNikodem/Out_test.npy"
+TRAIN_MEAN_STD_PATH = "DataBDF/OutNikodem/Out_mean_std.pkl"
+TEST_MEAN_STD_PATH = "DataBDF/OutNikodem/Out_mean_std.pkl"
 
 def renormalize_data(dataset):
     with open(TEST_MEAN_STD_PATH, "rb") as mean_std_file_test:

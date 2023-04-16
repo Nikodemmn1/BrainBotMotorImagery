@@ -8,10 +8,10 @@ from Dataset.dataset_ensemble import *
 def main():
     included_classes = [0, 1, 2]
     included_channels = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-    full_dataset = EEGDatasetEnsemble("./DataBDF/Out/Out_train.npy",
-                              "./DataBDF/Out/Out_val.npy",
-                              "./DataBDF/Out/Out_test.npy",
-                              2, included_channels)
+    full_dataset = EEGDatasetEnsemble("DataBDF/OutNikodem/Out_train.npy",
+                                      "DataBDF/OutNikodem/Out_val.npy",
+                                      "DataBDF/OutNikodem/Out_test.npy",
+                                      2, included_channels)
     train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
     sampler_train = WeightedRandomSampler(full_dataset.weights_train, len(train_dataset))
     train_data = DataLoader(train_dataset, batch_size=512, num_workers=12, sampler=sampler_train)
