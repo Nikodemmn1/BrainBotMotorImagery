@@ -18,8 +18,8 @@ def main():
     val_data = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=0)
     test_data = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0)
 
-    model = OneDNet(included_classes, train_dataset.indices,
-                    val_dataset.indices, test_dataset.indices)
+    model = OneDNet(included_classes, train_indices=train_dataset.indices,
+                    val_indices=val_dataset.indices, test_indices=test_dataset.indices)
 
     #model = OneDNetInception.load_from_checkpoint(included_classes=included_classes,
     #                                    checkpoint_path="./lightning_logs/version_24/checkpoints/last.ckpt")

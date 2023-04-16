@@ -15,41 +15,40 @@ import cProfile
 import math
 
 class OneDNet(LightningModule):
-    def __init__(self, included_classes, train_indices=None, val_indices=None, test_indices=None):
+    def __init__(self, included_classes, domain_name='source', train_indices=None, val_indices=None, test_indices=None):
         super().__init__()
-
         classes_count = len(included_classes)
 
         self.features = nn.Sequential(
             nn.Conv2d(1, 32, kernel_size=(3, 5), padding='same', padding_mode='circular'),
             nn.LeakyReLU(negative_slope=0.05, inplace=True),
             nn.AvgPool2d(kernel_size=(1, 3)),
-            AdaBatchNorm2d(32),
+            AdaBatchNorm2d(32, domain_name=domain_name),
             nn.Dropout2d(p=0.7),
 
             nn.Conv2d(32, 64, kernel_size=(3, 5), padding='valid'),
             # nn.Dropout2d(p=0.2),
             nn.LeakyReLU(negative_slope=0.05, inplace=True),
             nn.AvgPool2d(kernel_size=(1, 3)),
-            AdaBatchNorm2d(64),
+            AdaBatchNorm2d(64, domain_name=domain_name),
             nn.Dropout2d(p=0.6),
 
             nn.Conv2d(64, 128, kernel_size=(3, 3), padding='valid'),
             # nn.Dropout2d(p=0.2),
             nn.LeakyReLU(negative_slope=0.05, inplace=True),
-            AdaBatchNorm2d(128),
+            AdaBatchNorm2d(128, domain_name=domain_name),
             nn.Dropout2d(p=0.6),
         )
 
         self.classifier = nn.Sequential(
             nn.Linear(7168, 250),
             nn.LeakyReLU(negative_slope=0.05, inplace=True),
-            AdaBatchNorm1d(250),
+            AdaBatchNorm1d(250, domain_name=domain_name),
             nn.Dropout(p=0.5),
 
             nn.Linear(250, 120),
             nn.LeakyReLU(negative_slope=0.05, inplace=True),
-            AdaBatchNorm1d(120),
+            AdaBatchNorm1d(120, domain_name=domain_name),
             nn.Dropout(p=0.5),
 
             nn.Linear(120, classes_count),
@@ -224,91 +223,87 @@ class Augmenter(nn.Module):
         return x
 
 class AdaBatchNorm2d(nn.Module):
-    def __init__(self, num_features, eps=1e-5, momentum=0.1, affine=True):
+    def __init__(self, num_features, domain_name, eps=1e-5, momentum=0.1, affine=True):
         super().__init__()
         self.bn = nn.BatchNorm2d(num_features, eps, momentum, affine)
-        self.current_domain_name = None
+        self.num_features = num_features
+        self.current_domain_name = domain_name
+
         self.registered_domains = []
-        self.domain_statistics = {}
-    def forward(self, x, domain_name=None):
-        device = x.device
+    def forward(self, x):
         batch_size = x.shape[0]
-        channels_num = x.shape[1]
-        if domain_name == None:
-            self.current_domain_name = 'source'
-        else:
-            self.current_domain_name = domain_name
+        device = x.device
         if self.current_domain_name not in self.registered_domains:
             self.registered_domains.append(self.current_domain_name)
-            self.domain_statistics[self.current_domain_name] = {}
-            self.domain_statistics[self.current_domain_name]['running_mean'] = torch.zeros(channels_num)
-            self.domain_statistics[self.current_domain_name]['running_var'] = torch.ones(channels_num)
-            self.domain_statistics[self.current_domain_name]['num_samples_tracked'] = 0
+            self.register_buffer(self.current_domain_name + '_running_mean', torch.zeros(self.num_features), persistent=True)
+            self.register_buffer(self.current_domain_name + '_running_var', torch.ones(self.num_features), persistent=True)
+            self.register_buffer(self.current_domain_name + '_num_samples_tracked', torch.zeros(1), persistent=True)
         if self.training:
             y = self.bn(x)
             if self.current_domain_name == 'source':
-                self.domain_statistics[self.current_domain_name] = {'running_mean': self.bn.running_mean, 'running_var': self.bn.running_var, 'num_samples_tracked': self.bn.num_batches_tracked*batch_size}
+                setattr(self, self.current_domain_name + '_running_mean', self.bn.running_mean)
+                setattr(self, self.current_domain_name + '_running_var', self.bn.running_var)
+                setattr(self, self.current_domain_name + '_num_samples_tracked', self.bn.num_batches_tracked*batch_size)
         else:
             if self.current_domain_name != 'source':
                 self.update_domain_stats(x)
-            self.bn.running_mean = self.domain_statistics[self.current_domain_name]['running_mean'].to(device)
-            self.bn.running_var = self.domain_statistics[self.current_domain_name]['running_var'].to(device)
+            self.bn.running_mean = getattr(self, self.current_domain_name + '_running_mean').to(device)
+            self.bn.running_var = getattr(self, self.current_domain_name + '_running_var').to(device)
             y = self.bn(x)
         return y
 
     def update_domain_stats(self, x):
         #implemented from https://doi.org/10.1016/j.patcog.2018.03.005
-        batch_mean = torch.mean(x, dim=[0, 2, 3], keepdim=True)
-        batch_var = torch.bar(x, dim=[0, 2, 3], unbiased=True, keepdim=True)
+        device = x.device
+        batch_mean = torch.mean(x, dim=[0, 2, 3], keepdim=True).to(device)
+        batch_var = torch.var(x, dim=[0, 2, 3], unbiased=True, keepdim=True).to(device)
         batch_size = x.shape[0]
-        self.domain_statistics[self.current_domain_name]['num_samples_tracked'] += batch_size
-        N = self.domain_statistics[self.current_domain_name]['num_samples_tracked']
-        var = self.domain_statistics[self.current_domain_name]['running_var']
-        d = batch_mean - self.domain_statistics[self.current_domain_name]['running_mean']
-        self.domain_statistics[self.current_domain_name]['running_mean'] += (d*batch_size)/N
-        self.domain_statistics[self.current_domain_name]['running_var'] = (var*N)/(N+batch_size) + (batch_var*batch_size)/(N+batch_size) + (d**2*N*batch_size)/(N+batch_size)**2
+        setattr(self, self.current_domain_name + '_num_samples_tracked', getattr(self, self.current_domain_name + '_num_samples_tracked') + batch_size)
+        N = getattr(self, self.current_domain_name + '_num_samples_tracked').to(device)
+        var = getattr(self, self.current_domain_name + '_running_var').to(device)
+        d = batch_mean - getattr(self, self.current_domain_name + '_running_mean').to(device)
+        setattr(self, self.current_domain_name + '_running_mean', getattr(self, self.current_domain_name + '_running_mean').to(device) + (d*batch_size)/N)
+        setattr(self, self.current_domain_name + '_running_var', (var*N)/(N+batch_size) + (batch_var*batch_size)/(N+batch_size) + (d**2*N*batch_size)/(N+batch_size)**2)
 
 class AdaBatchNorm1d(nn.Module):
-    def __init__(self, num_features, eps=1e-5, momentum=0.1, affine=True):
+    def __init__(self, num_features, domain_name, eps=1e-5, momentum=0.1, affine=True):
         super().__init__()
         self.bn = nn.BatchNorm1d(num_features, eps, momentum, affine)
-        self.current_domain_name = None
+        self.num_features = num_features
+        self.current_domain_name = domain_name
+
         self.registered_domains = []
-        self.domain_statistics = {}
-    def forward(self, x, domain_name=None):
-        device = x.device
+    def forward(self, x):
         batch_size = x.shape[0]
-        channels_num = x.shape[1]
-        if domain_name == None:
-            self.current_domain_name = 'source'
-        else:
-            self.current_domain_name = domain_name
+        device = x.device
         if self.current_domain_name not in self.registered_domains:
             self.registered_domains.append(self.current_domain_name)
-            self.domain_statistics[self.current_domain_name] = {}
-            self.domain_statistics[self.current_domain_name]['running_mean'] = torch.zeros(channels_num)
-            self.domain_statistics[self.current_domain_name]['running_var'] = torch.ones(channels_num)
-            self.domain_statistics[self.current_domain_name]['num_samples_tracked'] = 0
+            self.register_buffer(self.current_domain_name + '_running_mean', torch.zeros(self.num_features), persistent=True)
+            self.register_buffer(self.current_domain_name + '_running_var', torch.ones(self.num_features), persistent=True)
+            self.register_buffer(self.current_domain_name + '_num_samples_tracked', torch.zeros(1), persistent=True)
         if self.training:
             y = self.bn(x)
             if self.current_domain_name == 'source':
-                self.domain_statistics[self.current_domain_name] = {'running_mean': self.bn.running_mean, 'running_var': self.bn.running_var, 'num_samples_tracked': self.bn.num_batches_tracked*batch_size}
+                setattr(self, self.current_domain_name + '_running_mean', self.bn.running_mean)
+                setattr(self, self.current_domain_name + '_running_var', self.bn.running_var)
+                setattr(self, self.current_domain_name + '_num_samples_tracked', self.bn.num_batches_tracked*batch_size)
         else:
             if self.current_domain_name != 'source':
                 self.update_domain_stats(x)
-            self.bn.running_mean = self.domain_statistics[self.current_domain_name]['running_mean'].to(device)
-            self.bn.running_var = self.domain_statistics[self.current_domain_name]['running_var'].to(device)
+            self.bn.running_mean = getattr(self, self.current_domain_name + '_running_mean').to(device)
+            self.bn.running_var = getattr(self, self.current_domain_name + '_running_var').to(device)
             y = self.bn(x)
         return y
 
     def update_domain_stats(self, x):
+        device = x.device
         #implemented from https://doi.org/10.1016/j.patcog.2018.03.005
-        batch_mean = torch.mean(x, dim=[0, 2], keepdim=True)
-        batch_var = torch.bar(x, dim=[0, 2], unbiased=True, keepdim=True)
+        batch_mean = torch.mean(x, dim=[0], keepdim=True).to(device)
+        batch_var = torch.var(x, dim=[0], unbiased=True, keepdim=True).to(device)
         batch_size = x.shape[0]
-        self.domain_statistics[self.current_domain_name]['num_samples_tracked'] += batch_size
-        N = self.domain_statistics[self.current_domain_name]['num_samples_tracked']
-        var = self.domain_statistics[self.current_domain_name]['running_var']
-        d = batch_mean - self.domain_statistics[self.current_domain_name]['running_mean']
-        self.domain_statistics[self.current_domain_name]['running_mean'] += (d*batch_size)/N
-        self.domain_statistics[self.current_domain_name]['running_var'] = (var*N)/(N+batch_size) + (batch_var*batch_size)/(N+batch_size) + (d**2*N*batch_size)/(N+batch_size)**2
+        setattr(self, self.current_domain_name + '_num_samples_tracked', getattr(self, self.current_domain_name + '_num_samples_tracked') + batch_size)
+        N = getattr(self, self.current_domain_name + '_num_samples_tracked').to(device)
+        var = getattr(self, self.current_domain_name + '_running_var').to(device)
+        d = batch_mean - getattr(self, self.current_domain_name + '_running_mean').to(device)
+        setattr(self, self.current_domain_name + '_running_mean', getattr(self, self.current_domain_name + '_running_mean').to(device) + (d*batch_size)/N)
+        setattr(self, self.current_domain_name + '_running_var', (var*N)/(N+batch_size) + (batch_var*batch_size)/(N+batch_size) + (d**2*N*batch_size)/(N+batch_size)**2)
