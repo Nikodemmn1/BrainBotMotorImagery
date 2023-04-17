@@ -15,10 +15,13 @@ def main():
     val_data = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=0)
     test_data = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0)
 
+    model = OneDNet(included_classes, train_indices=train_dataset.indices, val_indices=val_dataset.indices, test_indices=test_dataset.indices)
+    sd = model.state_dict()
+    model.load_state_dict(sd)
     model = OneDNet.load_from_checkpoint(channel_count=len(included_channels),
                                          included_classes=included_classes,
                                          domain_name='target',
-                                         checkpoint_path="../lightning_logs/version_20/checkpoints/epoch=39-val_loss=0.00-val_accuracy=0.00.ckpt")
+                                         checkpoint_path="../lightning_logs/version_26/checkpoints/epoch=3-val_loss=0.00-val_accuracy=0.00.ckpt")
 
     trainer = Trainer(gpus=-1, callbacks=[TQDMProgressBar(refresh_rate=5),
                                           StochasticWeightAveraging(swa_lrs=1e-2),
