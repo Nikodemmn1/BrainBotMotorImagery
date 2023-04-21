@@ -15,7 +15,7 @@ SAMPLES_DECIMATED = SAMPLES // DECIMATION_FACTOR
 TCP_LOCAL_PORT = 7230
 
 # TCP_AV_PORT = 8188  # port configured in Activeview
-TCP_AV_PORT = 8554  # port configured in Activeview
+TCP_AV_PORT = 8888  # port configured in Activeview
 TCP_AV_ADDRESS = 'localhost'  # IP adress of Actiview host
 
 UDP_PORT = 5502
