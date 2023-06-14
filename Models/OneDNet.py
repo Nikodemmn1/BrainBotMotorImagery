@@ -15,43 +15,54 @@ import cProfile
 import math
 
 class OneDNet(LightningModule):
+
     def __init__(self, included_classes, domain_name='source', train_indices=None, val_indices=None, test_indices=None):
         super().__init__()
         classes_count = len(included_classes)
 
         self.features = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=(3, 5), padding='same', padding_mode='circular'),
-            nn.LeakyReLU(negative_slope=0.05, inplace=True),
+            nn.Conv2d(1, 1, kernel_size=(5, 64), padding='same', padding_mode='circular'),
             nn.AvgPool2d(kernel_size=(1, 3)),
-            AdaBatchNorm2d(32, domain_name=domain_name),
-            nn.Dropout2d(p=0.7),
-
-            nn.Conv2d(32, 64, kernel_size=(3, 5), padding='valid'),
-            # nn.Dropout2d(p=0.2),
+            AdaBatchNorm2d(1, domain_name=domain_name),
             nn.LeakyReLU(negative_slope=0.05, inplace=True),
+            #nn.Dropout2d(p=0.7),
+
+            nn.Conv2d(1, 2, kernel_size=(5, 32), padding='valid'),
+            # nn.Dropout2d(p=0.2),
             nn.AvgPool2d(kernel_size=(1, 3)),
-            AdaBatchNorm2d(64, domain_name=domain_name),
-            nn.Dropout2d(p=0.6),
-
-            nn.Conv2d(64, 128, kernel_size=(3, 3), padding='valid'),
-            # nn.Dropout2d(p=0.2),
+            AdaBatchNorm2d(2, domain_name=domain_name),
             nn.LeakyReLU(negative_slope=0.05, inplace=True),
-            AdaBatchNorm2d(128, domain_name=domain_name),
-            nn.Dropout2d(p=0.6),
+            #nn.Dropout2d(p=0.6),
+
+            nn.Conv2d(2, 4, kernel_size=(5, 16), padding='same'),
+            # nn.Dropout2d(p=0.2),
+            AdaBatchNorm2d(4, domain_name=domain_name),
+            nn.LeakyReLU(negative_slope=0.05, inplace=True),
+            #nn.Dropout2d(p=0.6),
+            nn.Conv2d(4, 8, kernel_size=(3, 8), padding='same'),
+            # nn.Dropout2d(p=0.2),
+            AdaBatchNorm2d(8, domain_name=domain_name),
+            nn.LeakyReLU(negative_slope=0.05, inplace=True),
+            nn.Conv2d(8, 16, kernel_size=(3, 4), padding='same'),
+            # nn.Dropout2d(p=0.2),
+            AdaBatchNorm2d(16, domain_name=domain_name),
+            nn.LeakyReLU(negative_slope=0.05, inplace=True),
+
+            #nn.Dropout2d(p=0.6),
         )
 
         self.classifier = nn.Sequential(
-            nn.Linear(7168, 250),
+            nn.Linear(112, 16),
+            AdaBatchNorm1d(16, domain_name=domain_name),
             nn.LeakyReLU(negative_slope=0.05, inplace=True),
-            AdaBatchNorm1d(250, domain_name=domain_name),
-            nn.Dropout(p=0.5),
+            #nn.Dropout(p=0.5),
 
-            nn.Linear(250, 120),
+            nn.Linear(16, 8),
+            AdaBatchNorm1d(8, domain_name=domain_name),
             nn.LeakyReLU(negative_slope=0.05, inplace=True),
-            AdaBatchNorm1d(120, domain_name=domain_name),
-            nn.Dropout(p=0.5),
+            #nn.Dropout(p=0.5),
 
-            nn.Linear(120, classes_count),
+            nn.Linear(8, classes_count),
             nn.LogSoftmax(dim=1)
         )
 
