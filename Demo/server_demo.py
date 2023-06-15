@@ -14,11 +14,21 @@ from Jetbot.utils.communication import FrameClient, CommandClient
 from Jetbot.utils.configuration import COMMANDS, INVCOMMANDS
 from pynput import keyboard
 from Models.OneDNet import OneDNet
+from Dataset.dataset import *
+
+number_to_label_map = {
+    '0': 'left',
+    '1': 'right',
+    '2': 'relax',
+    None: None
+}
+
+DATA_PATH = 'DataBDF/Out/KubaBinary/'
 
 JETBOT_ADDRESS = '192.168.0.145'
 JETBOT_PORT = 3333
 
-SERVER_ADDRESS = '192.168.0.163'
+SERVER_ADDRESS = 'localhost'
 SERVER_PORT = 22243
 
 COMMAND_SERVING_PORT = 22242
@@ -31,16 +41,16 @@ EEGKEY = None
 listener = None
 
 def create_sockets():
-    # TCP Socket for receiving data from Actiview
-    tcp_client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    tcp_client_sock.bind(("localhost", TCP_LOCAL_PORT))
-    tcp_client_sock.connect((TCP_AV_ADDRESS, TCP_AV_PORT))
+    # # TCP Socket for receiving data from Actiview
+    # tcp_client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # tcp_client_sock.bind(("localhost", TCP_LOCAL_PORT))
+    # tcp_client_sock.connect((TCP_AV_ADDRESS, TCP_AV_PORT))
 
     # UDP socket for sending classification results to the client
     udp_server_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udp_server_sock.bind((SERVER_ADDRESS, COMMAND_SERVING_PORT))
 
-    return tcp_client_sock, udp_server_sock
+    return udp_server_sock
 
 
 def load_mean_std():
@@ -52,9 +62,9 @@ def load_mean_std():
 
 def load_model():
     """Loading the trained OneDNet model"""
-    model = OneDNet.load_from_checkpoint(checkpoint_path="../Modele/Kuba/Multi/model.ckpt", included_classes=[0, 1, 2],
-                                         channel_count=3)
-        #torch.load("model.pt")
+    # model = OneDNet.load_from_checkpoint(checkpoint_path="../Modele/Kuba/Multi/model.ckpt", included_classes=[0, 1, 2],
+    #                                      channel_count=3)
+    model = torch.load("../trained_models/JointNikodemKuba_multiclass.pt")
     model.eval()
     return model
 
@@ -80,32 +90,56 @@ def obstacle_detection():
         with free_boxes_lock:
             free_boxes = new_free_boxes
 
+class DataPicker():
+    def __init__(self, mode='train'):
+        included_classes = [0, 1, 2]
+        included_channels = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        full_dataset = EEGDataset("../DataBDF/Out/KubaMulticlass/KubaMulticlass_Train.npy",
+                                  "../DataBDF/Out/KubaMulticlass/KubaMulticlass_val.npy",
+                                  "../DataBDF/Out/KubaMulticlass/KubaMulticlass_test.npy",
+                                  included_classes, included_channels)
+        train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
+        if mode=='train':
+            labels = train_dataset.dataset.labels[train_dataset.indices]
+            data = train_dataset.dataset.data[train_dataset.indices]
+        elif mode=='val':
+            labels = val_dataset.dataset.labels[val_dataset.indices]
+            data = val_dataset.dataset.data[val_dataset.indices]
+        elif mode=='test':
+            labels = test_dataset.dataset.labels[test_dataset.indices]
+            data = test_dataset.dataset.data[test_dataset.indices]
+        else:
+            raise ValueError("mode must be either 'train', 'val' or 'test'")
 
-
+        self.dataset = {'data': data,
+                        'labels': labels}
+        self.prepare_queues()
+    def __call__(self, label):
+        if label not in ['left', 'right', 'relax']:
+            raise ValueError('label should be either left, right or relax')
+        data = self.queues[label][0]
+        self.queues[label] = np.roll(self.queues[label], -1, axis=0)
+        return data
+    def prepare_queues(self):
+        labels = self.dataset['labels']
+        masks = {'left': labels == 0,
+                 'right': labels == 1,
+                 'relax': labels == 2}
+        self.queues = {'left': self.dataset['data'][masks['left']],
+                   'right': self.dataset['data'][masks['right']],
+                   'relax': self.dataset['data'][masks['relax']]}
 def main():
-    # Sequence number of the last sent UDP packet
-    seq_num = random.randint(0, 2 ^ 32 - 1)
-
-    tcp_client_sock, udp_server_sock = create_sockets()
-
-    buffer = np.zeros((CHANNELS, SERVER_BUFFER_LEN))
-    buffer_filled = 0
-
-    buffer_mean_dc = np.zeros((CHANNELS, MEAN_PERIOD_LEN))
-
+    udp_server_sock = create_sockets()
+    data_picker = DataPicker()
     model = load_model()
-    mean_std = load_mean_std()
-
-    sec_res = np.zeros(3)
-    sec_samp = 0
-    time_start = time.time()
 
     decision_maker = DecisionMaker(window_length=80, priorities=[2, 0, 1], thresholds=[0.55, 0.50, 0.75])
     decisions_to_ignore = 0
     decision_ignored = None
     prev_decision = None
 
-    received_data_struct_buffer = bytearray()
+    time_start = time.time()
+    seq_num = random.randint(0, 2 ^ 32 - 1)
 
     # Start a thread to predict on frames
     predicting = threading.Thread(target=obstacle_detection)
@@ -113,36 +147,14 @@ def main():
     decision_merger = DecisionMerger()
 
     while True:
-        # Decoding the received packet from ActiView
-        received_bytes = 0
-        while received_bytes < WORDS * 3:
-            received_data_struct_partial = tcp_client_sock.recv(WORDS * 3)
-            received_bytes += len(received_data_struct_partial)
-            received_data_struct_buffer += received_data_struct_partial
-        received_data_struct = bytes(received_data_struct_buffer[:WORDS*3])
-        received_data_struct_buffer = received_data_struct_buffer[WORDS*3:]
-        raw_data = struct.unpack(str(WORDS * 3) + 'B', received_data_struct)
-        decoded_data = dc.decode_data_from_bytes(raw_data)
-        # decoded_data[CHANNELS-1, :] = np.bitwise_and(decoded_data[CHANNELS-1, :].astype(int), 2 ** 17 - 1)
+            number_label = get_command()
+            label = number_to_label_map[number_label]
+            if label is not None:
+                x = data_picker(label)
+                y = dc.get_classification(x, model)
+                out_ind = np.argmax(y.numpy())
 
-        buffer = np.roll(buffer, -SAMPLES, axis=1)
-        buffer[:, -SAMPLES:] = decoded_data
-
-        buffer_mean_dc = np.roll(buffer_mean_dc, -SAMPLES, axis=1)
-        buffer_mean_dc[:, -SAMPLES:] = decoded_data
-
-        if buffer_filled + SAMPLES < SERVER_BUFFER_LEN:
-            buffer_filled += SAMPLES
-            sec_samp += 1
-        else:
-            dc_means = buffer_mean_dc.mean(axis=1)
-            buffer_no_dc = dc.remove_dc_offset(buffer, dc_means)
-            x = dc.prepare_data_for_classification(buffer_no_dc, mean_std["mean"], mean_std["std"])
-            x = x[:, :, 5:, :]
-            y = dc.get_classification(x, model)
-            out_ind = np.argmax(y.numpy())
-            # print(out_ind)
-            decision_maker.add_data(out_ind)
+                decision_maker.add_data(out_ind)
 
             if time.time() - time_start > 0.75:
                 decision = str(decision_maker.decide())
