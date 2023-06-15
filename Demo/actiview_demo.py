@@ -31,7 +31,7 @@ def load_data(raw_path, save_path):
     SAMPLING_RATE = 2048
 
     FILE_PATHS = []
-    dir_path = '/'.join(raw_path.split("/")[:-1])
+    dir_path = '/'.join(raw_path.split("/")[:-1])+'/'
     if os.path.isdir(raw_path):
         FILE_PATHS = os.listdir(raw_path)
     elif os.path.isfile(raw_path):
@@ -118,6 +118,7 @@ def main_idea():
                 eeg_signal = EEGSignals(SignalTypes(received_data))
 
 def main():
+    load_data('Data/Kuba_Raw/kub2_3.bdf','Data/kub2_3.npy')
     eeg_signal_type = SignalTypes.Neither
     eeg_signal = EEGSignals(eeg_signal_type)
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -187,9 +188,9 @@ def on_release(key):
 # Create a keyboard listener that runs in the background
 def CreateKeyboardListener():
     global listener
-    if listener == None:
-        listener = keyboard.Listener(on_press=on_press, on_release=on_release,suppress=True)
-        listener.start()
+    #if listener == None:
+        #listener = keyboard.Listener(on_press=on_press, on_release=on_release,suppress=True)
+        #listener.start()
 
 if __name__ == '__main__':
     CreateKeyboardListener()
