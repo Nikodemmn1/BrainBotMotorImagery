@@ -1,6 +1,6 @@
 import os
 
-FRAME_SHAPE = (512,512,3) #(384, 384, 3)
+FRAME_SHAPE = (384,384,3) #(384, 384, 3)
 FRAME_COUNT = 0
 
 COMMANDS = {

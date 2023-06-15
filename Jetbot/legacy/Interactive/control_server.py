@@ -256,7 +256,7 @@ class JetsonMock:
 
         if command == 'forward':
             if self.przeszkoda > 0:
-                print(f"Przeszkoda czekam {self.przeszkoda}")
+                print(f"Przeszkoda czekam control_server {self.przeszkoda}")
                 self.przeszkoda -= 1
                 return None
             if front:

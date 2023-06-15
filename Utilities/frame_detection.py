@@ -122,7 +122,7 @@ class MergeDecisions:
 
         if command == 'forward':
             if self.przeszkoda > 0:
-                print(f"Przeszkoda czekam {self.przeszkoda}")
+                print(f"Przeszkoda czekam framedetection {self.przeszkoda}")
                 self.przeszkoda -= 1
                 return None
             if front:

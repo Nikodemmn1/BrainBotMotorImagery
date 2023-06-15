@@ -92,7 +92,8 @@ def main():
     sec_samp = 0
     time_start = time.time()
 
-    decision_maker = DecisionMaker(window_length=80, priorities=[2, 0, 1], thresholds=[0.55, 0.50, 0.75])
+    # decision_maker = DecisionMaker(window_length=60, priorities=[2, 0, 1], thresholds=[0.6, 0.50, 0.55])
+    decision_maker = DecisionMaker(window_length=60, priorities=[2, 0, 1], thresholds=[0.9, 0.48, 0.4])
     decisions_to_ignore = 0
     decision_ignored = None
     prev_decision = None
@@ -146,6 +147,7 @@ def main():
                         decision_ignored = decision
                     print(f"Decision: {kierunki[decision]}")
                     print(decision_maker.decisions_masks)
+
                     if decision is not None and decision != 'None':
                         with free_boxes_lock:
                             decision = decision_merger.merge(COMMANDS[int(decision)],free_boxes)

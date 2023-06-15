@@ -7,6 +7,7 @@ from Jetbot.utils.communication import FrameClient, CommandClient
 import Jetbot.utils.configuration as cfg
 
 free_boxes = np.array([False, False, False])
+debug_info = ""
 free_boxes_lock = threading.Lock()
 KEYS = [False,False,False]
 PLOT = False
@@ -24,6 +25,7 @@ IMG_ITERATOR = cfg.find_last_img(cfg.RESOURCES_PATH+'/frame')
 def obstacle_detection(server_address=SERVER_ADDRESS):
     global free_boxes
     global IMG_ITERATOR
+    global debug_info
     global FRAME_COUNT
     global PLOT
     midas = Midas(CAMERA=True)
@@ -38,11 +40,12 @@ def obstacle_detection(server_address=SERVER_ADDRESS):
         depth_image = midas.predict(frame,PLOT,IMG_ITERATOR,FRAME_COUNT)
         if depth_image is None:
             continue
-        new_free_boxes = midas_iterpreter.find_obstacles(depth_image)
+        new_free_boxes, d_info = midas_iterpreter.find_obstacles(depth_image, print_debug=False)
         if new_free_boxes is None:
             continue
         with free_boxes_lock:
             free_boxes = new_free_boxes
+            debug_info = d_info
 
 def command_control(jetbot_address=JETBOT_ADDRESS):
     decision_merger = DecisionMerger()
@@ -54,8 +57,10 @@ def command_control(jetbot_address=JETBOT_ADDRESS):
         # if DEBUG_PRINT:
         print(f"Capturing command {command}")
         with free_boxes_lock:
-                new_free_boxes = free_boxes
+            new_free_boxes = free_boxes
+            d_info = debug_info
         command = decision_merger.merge(command,new_free_boxes)
+        print(d_info)
         if command is None: continue
         print(f"Sending Command {command}")
         command_index = cfg.INVCOMMANDS[command]
