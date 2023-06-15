@@ -11,7 +11,7 @@ SERVER_ADDRESS = ("127.0.0.1", 22243)
 JETBOT_ADDRESS = ("127.0.0.1", 22242)
 DEBUG_PRINT = False
 SYMULATE_COMMANDS = False
-PLOT = False
+PLOT = True
 
 free_boxes = np.array([False, False, False])
 free_boxes_lock = threading.Lock()

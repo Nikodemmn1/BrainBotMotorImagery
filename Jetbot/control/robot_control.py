@@ -9,7 +9,7 @@
 # First load the robot's camera
 # Sometimes it doesn't work - then restart
 import nanocamera as nano
-RESOLUTION = (512,512) #(384, 384)
+RESOLUTION = (384, 384)
 camera = nano.Camera(flip=0, width=RESOLUTION[0], height=RESOLUTION[1], fps=10)
 frame = camera.read()
 
@@ -17,14 +17,14 @@ print(f"Camera Loaded, frames have shape = {frame.shape}")
 # 384, 384, 3
 
 # Connection configuration:
-SERVER_ADDRESS = ("192.168.0.100", 22243)
-JETBOT_ADDRESS = ("192.168.0.103", 3333)
+SERVER_ADDRESS = ("192.168.0.163", 22243)
+JETBOT_ADDRESS = ("192.168.0.145", 3333)
 FRAME_COUNT = 0
 
 # Debug mode:
 DEBUG_PRINT = False
 
-# Load the jetbot code
+# Load the jetbot code63
 import os
 import sys
 # Hack to get to the jetson python module:
@@ -33,13 +33,15 @@ sys.path.append('/home/jetson/Documents/JetbotProject/lib')
 # Load jetbot module (code inside jetbot - just a jetson repo code)
 from jetbot import Robot
 
-
 # Inports:
-
+import select
 import asyncio
-
+import cv2
+import numpy as np
+import socket
 import time
-
+import pickle
+import math
 import threading
 
 # Accepted commands:
@@ -49,7 +51,84 @@ COMMANDS = {
      2: 'forward',
 }
 
-from robot_communication import FrameClient, CommandClient
+
+class FrameClient:
+    BUFFER_SIZE = 1024
+    MAX_LENGTH_FRAME = 65540
+
+    def __init__(self):
+        print("Connecting to Server...")
+        self.SERVER_ADDRESS_PORT = SERVER_ADDRESS
+        self.UDP_CLIENT_SOCKET = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+
+    def send_frame(self,frame):
+        retval, buffer = cv2.imencode(".jpg", frame)
+        if retval:
+            # convert to byte array
+            buffer = buffer.tobytes()
+            # get size of the frame
+            buffer_size = len(buffer)
+
+            num_of_packs = 1
+            if buffer_size > self.MAX_LENGTH_FRAME:
+                num_of_packs = math.ceil(buffer_size / self.MAX_LENGTH_FRAME)
+
+            frame_info = {"packs": num_of_packs}
+
+            # send the number of packs to be expected
+            if DEBUG_PRINT:
+                print("Number of packs:", num_of_packs)
+            message = pickle.dumps(frame_info)
+            self.UDP_CLIENT_SOCKET.sendto(message, self.SERVER_ADDRESS_PORT)
+
+            left = 0
+            right = self.MAX_LENGTH_FRAME
+
+            for i in range(num_of_packs):
+                if DEBUG_PRINT:
+                    print("left:", left)
+                    print("right:", right)
+
+                # truncate data to send
+                data = buffer[left:right]
+                left = right
+                right += self.MAX_LENGTH_FRAME
+
+                # send the frames accordingly
+                message = data
+                self.UDP_CLIENT_SOCKET.sendto(message, self.SERVER_ADDRESS_PORT)
+            if DEBUG_PRINT:
+                print(f"Sent a frame")
+
+    def flush_udp(self):
+         while True:
+              x, _, _ = select.select([self.UDP_CLIENT_SOCKET], [], [], 0.001)
+              if len(x) == 0:
+                    break
+              else:
+                    self.UDP_CLIENT_SOCKET.recv(self.BUFFER_SIZE)
+
+
+class CommandClient:
+    BUFFER_SIZE = 1024
+
+    def __init__(self):
+        self.JETBOT_ADDRESS_PORT = JETBOT_ADDRESS
+        self.UDP_CLIENT_SOCKET = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+        self.UDP_CLIENT_SOCKET.bind(self.JETBOT_ADDRESS_PORT)
+        print(f"Listening at {self.JETBOT_ADDRESS_PORT[0]}:{self.JETBOT_ADDRESS_PORT[1]}")
+
+    def receive_command(self):
+         message = self.UDP_CLIENT_SOCKET.recv(self.BUFFER_SIZE)
+         command_index_str = message.decode("utf-8")
+         command_index = int(command_index_str)
+         command = COMMANDS[command_index]
+         print('RECIEVED COMMAND FROM SERVER', command)
+         return command
+
+    def active_wait(self,seconds=0.2):
+        ready = select.select([self.UDP_CLIENT_SOCKET], [], [], 0.2)
+        return ready[0]
 
 class Jetson:
     def __init__(self):
@@ -74,9 +153,9 @@ class Jetson:
           
 
 
-def reporting_camera_frames(server_address=SERVER_ADDRESS):
+def reporting_camera_frames():
     global FRAME_COUNT
-    conn = FrameClient(server_address)
+    conn = FrameClient()
     i = 0
     frame_count = 3
 
@@ -93,8 +172,11 @@ def reporting_camera_frames(server_address=SERVER_ADDRESS):
             i = 0
 
 
-def hearken_orders(jetson,jetbot_address=JETBOT_ADDRESS):
-    conn = CommandClient(jetbot_address)
+
+
+
+def hearken_orders(jetson):
+    conn = CommandClient()
     while True:
         if DEBUG_PRINT:
             print("Receiving command...")
@@ -102,7 +184,6 @@ def hearken_orders(jetson,jetbot_address=JETBOT_ADDRESS):
             command = conn.receive_command()
             jetson.move(command)
             print(f"Moving {str(command)}")
-
 
 def main():
     jetson = Jetson()

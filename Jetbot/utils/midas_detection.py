@@ -12,6 +12,7 @@ class Midas:
         self.transform = transform
         self.device = device
         self.CAMERA = CAMERA
+        print('camera'+str(CAMERA))
 
     def load_model_midas(self):
         print('load_midas')
@@ -90,11 +91,11 @@ class MidasInterpreter:
     BOK_GROUP = 7
 
     GROUP_SIZE = 10
-    RESOLUTION = (512,512) #(384, 384)
+    RESOLUTION = (384, 384)#(512,512) #(384, 384)
     MEAN_PIXEL_COUNT_RATIO = 0.1
     MEAN_PIXEL_COUNT = int(RESOLUTION[0] * 0.35 * RESOLUTION[1] * 0.2 * MEAN_PIXEL_COUNT_RATIO)
-    Y_BOX_POSITION = (10, 300) #230)#330) # split into 10 - 320 - 54
-    X_BOX_POSITION = (52, 112, 272, 332) # split into 22 - 90 - 160 - 90 - 22
+    Y_BOX_POSITION = (10,400)#(10, 300) #230)#330) # split into 10 - 320 - 54
+    X_BOX_POSITION = (70,150,360,440)#(52, 112, 272, 332) # split into 22 - 90 - 160 - 90 - 22
 
     def __init__(self):
         self.free_boxes = np.array([False, False, False])
@@ -203,9 +204,11 @@ class DecisionMerger:
             elif right and not front and not left:
                 return 'right'
             elif left and front and not right:
-                return 'left'
+                #return 'left'
+                return 'forward'
             elif right and front and not left:
-                return 'right'
+                #return 'right'
+                return 'forward'
             else:
                 print("Przeszkoda akcja nie jest podjęta!! 909090909090909090909090909090909090")
                 self.przeszkoda = 3

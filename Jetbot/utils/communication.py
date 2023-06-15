@@ -8,7 +8,7 @@ DEBUG_PRINT = False
 
 class FrameClient:
     BUFFER_SIZE = 1024
-    DATAGRAM_MAX_SIZE = 65540
+    DATAGRAM_MAX_SIZE = 65500
 
     def __init__(self, server_address_port):
         self.SERVER_ADDRESS_PORT = server_address_port
@@ -34,6 +34,12 @@ class FrameClient:
                 frame = np.frombuffer(buffer, dtype=np.uint8)
                 frame = frame.reshape(frame.shape[0], 1)
                 frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
+                if frame is None:
+                    print(f"Frame is None")
+                    return None
+                #if frame.shape[0] == 0 or frame.shape[1] == 0:
+                #    print(f"Shape {frame.shape} zero!")
+                #frame = cv2.resize(frame, (384,384), interpolation=cv2.INTER_AREA)
 
                 if frame is not None and type(frame) == np.ndarray:
                     if DEBUG_PRINT:
