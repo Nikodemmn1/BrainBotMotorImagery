@@ -2,6 +2,8 @@ import socket
 import struct
 import random
 import pickle
+from enum import Enum
+
 import Server.server_data_convert as dc
 import numpy as np
 import torch
@@ -20,6 +22,7 @@ number_to_label_map = {
     '0': 'left',
     '1': 'right',
     '2': 'relax',
+    '3': 'neither',
     None: None
 }
 
@@ -27,7 +30,7 @@ DATA_PATH = 'DataBDF/Out/KubaBinary/'
 
 EEGKEY = None
 
-JETBOT_ADDRESS = '192.168.0.145'
+JETBOT_ADDRESS = '192.168.193.149'
 JETBOT_PORT = 3333
 
 SERVER_ADDRESS = 'localhost'
@@ -64,9 +67,9 @@ def load_mean_std():
 
 def load_model():
     """Loading the trained OneDNet model"""
-    # model = OneDNet.load_from_checkpoint(checkpoint_path="../Modele/Kuba/Multi/model.ckpt", included_classes=[0, 1, 2],
-    #                                      channel_count=3)
-    model = torch.load("../trained_models/JointNikodemKuba_multiclass.pt")
+    model = OneDNet.load_from_checkpoint(checkpoint_path="Modele/Kuba/Multi/model.ckpt", included_classes=[0, 1, 2],
+                                          channel_count=3)
+    #model = torch.load("Demo/JointNikodemKuba_multiclass.pt")
     model.eval()
     return model
 
@@ -96,9 +99,9 @@ class DataPicker():
     def __init__(self, mode='train'):
         included_classes = [0, 1, 2]
         included_channels = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-        full_dataset = EEGDataset("../DataBDF/Out/KubaMulticlass/KubaMulticlass_Train.npy",
-                                  "../DataBDF/Out/KubaMulticlass/KubaMulticlass_val.npy",
-                                  "../DataBDF/Out/KubaMulticlass/KubaMulticlass_test.npy",
+        full_dataset = EEGDataset("Demo/KubaMulticlass_Train.npy",
+                                  "Demo/KubaMulticlass_val.npy",
+                                  "Demo/KubaMulticlass_test.npy",
                                   included_classes, included_channels)
         train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
         if mode=='train':
@@ -116,12 +119,14 @@ class DataPicker():
         self.dataset = {'data': data,
                         'labels': labels}
         self.prepare_queues()
+
     def __call__(self, label):
         if label not in ['left', 'right', 'relax']:
             raise ValueError('label should be either left, right or relax')
         data = self.queues[label][0]
         self.queues[label] = np.roll(self.queues[label], -1, axis=0)
         return data
+
     def prepare_queues(self):
         labels = self.dataset['labels']
         masks = {'left': labels == 0,
@@ -130,6 +135,8 @@ class DataPicker():
         self.queues = {'left': self.dataset['data'][masks['left']],
                    'right': self.dataset['data'][masks['right']],
                    'relax': self.dataset['data'][masks['relax']]}
+
+
 def main():
     udp_server_sock = create_sockets()
     data_picker = DataPicker()
@@ -147,43 +154,50 @@ def main():
     predicting = threading.Thread(target=obstacle_detection)
     predicting.start()
     decision_merger = DecisionMerger()
+    decision_source = 'left'
 
     while True:
-            number_label = get_command()
-            label = number_to_label_map[number_label]
-            if label is not None:
-                x = data_picker(label)
-                y = dc.get_classification(x, model)
-                out_ind = np.argmax(y.numpy())
+        number_label = get_eeg_command()
+        label = number_to_label_map[number_label]
+        if label is not None:
+            decision_source = label
 
-                decision_maker.add_data(out_ind)
+        if decision_source != 'neither':
+            x = data_picker(decision_source)
+            y = dc.get_classification(x, model)
+            out_ind = np.argmax(y.numpy())
+            decision_maker.add_data(out_ind)
 
-            if time.time() - time_start > 0.75:
+        if time.time() - time_start > 0.75:
+            if decision_source != 'neither':
                 decision = str(decision_maker.decide())
-                #check if keyboard override
-                keyboard_command = get_command()
-                if keyboard_command is not None:
-                    decision = keyboard_command
-                if decisions_to_ignore > 0 and prev_decision != decision and decision_ignored != decision:
-                    decisions_to_ignore -= 1
-                else:
-                    if decision == '0' or decision == '1':
-                        decisions_to_ignore = 5
-                        decision_ignored = decision
-                    print(f"Decision: {kierunki[decision]}")
-                    print(decision_maker.decisions_masks)
-                    if decision is not None and decision != 'None':
-                        with free_boxes_lock:
-                            decision = decision_merger.merge(COMMANDS[int(decision)],free_boxes)
-                    if decision is not None and decision != 'None':
-                        bytes_to_send = str.encode(str(INVCOMMANDS[decision]))
-                        udp_server_sock.sendto(bytes_to_send, (JETBOT_ADDRESS, JETBOT_PORT))
+            #check if keyboard override
+            keyboard_command = get_command()
+            if keyboard_command is not None:
+                decision = keyboard_command
+            elif keyboard_command is None and decision_source == 'neither':
                 time_start = time.time()
-                prev_decision = decision
+                continue
+            if decisions_to_ignore > 0 and prev_decision != decision and decision_ignored != decision:
+                decisions_to_ignore -= 1
+            else:
+                if decision == '0' or decision == '1':
+                    decisions_to_ignore = 3
+                    decision_ignored = decision
+                print(f"Decision: {kierunki[decision]}")
+                print(decision_maker.decisions_masks)
+                if decision is not None and decision != 'None':
+                    with free_boxes_lock:
+                        decision = decision_merger.merge(COMMANDS[int(decision)],free_boxes)
+                if decision is not None and decision != 'None':
+                    bytes_to_send = str.encode(str(INVCOMMANDS[decision]))
+                    udp_server_sock.sendto(bytes_to_send, (JETBOT_ADDRESS, JETBOT_PORT))
+            time_start = time.time()
+            prev_decision = decision
 
-            seq_num += 1
-            if seq_num == 2 ^ 32:
-                seq_num = 0
+        seq_num += 1
+        if seq_num == 2 ^ 32:
+            seq_num = 0
 
 def get_command():
     # Check for arrow key input
