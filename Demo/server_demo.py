@@ -15,6 +15,8 @@ from Jetbot.utils.configuration import COMMANDS, INVCOMMANDS
 from pynput import keyboard
 from Models.OneDNet import OneDNet
 
+EEGKEY = None
+
 JETBOT_ADDRESS = '192.168.0.145'
 JETBOT_PORT = 3333
 
@@ -184,6 +186,17 @@ def get_command():
         return '1'
     return None
 
+def get_eeg_command():
+    # Check for 0 1 2 3 key input
+    if EEGKEY is not None:
+        print("Pressed Key " + str(EEGKEY))
+    return EEGKEY
+
+class SignalTypes(Enum):
+    Letf = 0
+    Straight = 1
+    Right = 2
+    Neither = 3
 
 def on_press(key):
     global KEYS
@@ -202,6 +215,14 @@ def on_press(key):
         elif key == keyboard.Key.right:
             #print('Right arrow key pressed')
             KEYS = [False ,True, False]
+        elif key == keyboard.Key.f1:
+            EEGKEY = 0
+        elif key == keyboard.Key.f2:
+            EEGKEY = 1
+        elif key == keyboard.Key.f3:
+            EEGKEY = 2
+        elif key == keyboard.Key.f4:
+            EEGKEY = 3
 
     except AttributeError:
         # Ignore keys that don't have an ASCII representation
@@ -219,6 +240,14 @@ def on_release(key):
             KEYS = [False,False,False]
         elif key == keyboard.Key.right:
             KEYS = [False,False,False]
+        elif key == keyboard.Key.f4:
+            EEGKEY = None
+        elif key == keyboard.Key.f1:
+            EEGKEY = None
+        elif key == keyboard.Key.f2:
+            EEGKEY = None
+        elif key == keyboard.Key.f3:
+            EEGKEY = None
 
     except AttributeError:
         # Ignore keys that don't have an ASCII representation
