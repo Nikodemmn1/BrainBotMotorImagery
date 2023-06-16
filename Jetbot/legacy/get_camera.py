@@ -239,7 +239,7 @@ class JetsonMock:
 
     #@staticmethod
     #def save_frame(frame):
-    #    cv2.imwrite(f'./images/image_{i}.jpg', frame[120:160])
+    #    cv2.imwrite(f'./assets/image_{i}.jpg', frame[120:160])
     #    return 1
 
     def czy_przeszkoda(self, offset=0):

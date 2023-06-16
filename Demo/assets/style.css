@@ -1,0 +1,40 @@
+.center {
+    display: flex;
+    justify-content: center;
+}
+.control_button {
+    width: 240px;
+    height: 40px;
+    cursor: pointer;
+    border: 0px;
+    border-radius: 5px;
+    background-color: black;
+    color: white;
+    text-transform: uppercase;
+    font-size: 15px;
+    margin: 20px;
+}
+#layout {
+    clear: both;
+}
+#header {
+    display: flex;
+    float: left;
+}
+#control_interface {
+    clear: both;
+    vertical-align: bottom;
+}
+#title {
+    clear: both;
+    vertical-align: bottom;
+    font-weight: bold;
+}
+#pg_logo {
+    width: 100%;
+    height: 100%;
+}
+#aitech_logo {
+    width: 20%;
+    height: 20%;
+}
