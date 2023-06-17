@@ -99,9 +99,9 @@ class DataPicker():
     def __init__(self, mode='train'):
         included_classes = [0, 1, 2]
         included_channels = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-        full_dataset = EEGDataset("Demo/KubaMulticlass_Train.npy",
-                                  "Demo/KubaMulticlass_val.npy",
-                                  "Demo/KubaMulticlass_test.npy",
+        full_dataset = EEGDataset("DataBDF/Out/KubaMulticlass/",
+                                  "DataBDF/Out/KubaMulticlass/",
+                                  "DataBDF/Out/KubaMulticlass/",
                                   included_classes, included_channels)
         train_dataset, val_dataset, test_dataset = full_dataset.get_subsets()
         if mode=='train':
@@ -116,8 +116,8 @@ class DataPicker():
         else:
             raise ValueError("mode must be either 'train', 'val' or 'test'")
 
-        self.dataset = {'data': data,
-                        'labels': labels}
+        self.dataset = {'data': torch.Tensor(data),
+                        'labels': torch.Tensor(labels)}
         self.prepare_queues()
 
     def __call__(self, label):
