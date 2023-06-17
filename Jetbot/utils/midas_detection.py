@@ -136,7 +136,7 @@ class MidasInterpreter:
             print(debug_info)
             return self.free_boxes
         else:
-            return self.free_boxes, debug_info
+            return self.free_boxes#, debug_info
 
     @staticmethod
     def look_for_grouping(array):
@@ -181,8 +181,9 @@ class MidasInterpreter:
 
 
 class DecisionMerger:
-    def __init__(self):
+    def __init__(self,print=True):
         self.przeszkoda = 0
+        self.print = print
 
     # Requires usage of a lock with free_boxes_lock:
     def merge(self, command, free_boxes):
@@ -197,25 +198,32 @@ class DecisionMerger:
             #     return None
             # if front and left and right:
             if front:
-                print("Robot jedzie do przodu")
+                if self.print:
+                    print("Robot jedzie do przodu")
                 self.przeszkoda = 0
                 return 'forward'
             elif left and not right:
+                if self.print:
+                    print("Wykryto przeszkodę z prawej Robot skręca w prawo")
                 return 'left'
             elif right and not left:
                 return 'right'
             else:
                 # return random.choice(['left', 'right'])
-                return 'right'
+                #return 'right'
+                if self.print:
+                    print("Wykryto przeszkodę Robot stoi")
                 # print("Przeszkoda akcja nie jest podjęta!! 909090909090909090909090909090909090")
                 # self.przeszkoda = 3
                 # return None
         elif command == 'left':
-            print("Robot skreca w lewo")
+            if self.print:
+                print("Robot skreca w lewo")
             self.przeszkoda = 0
             return 'left'
         elif command == 'right':
-            print("Robot skreca w prawo")
+            if self.print:
+                print("Robot skreca w prawo")
             self.przeszkoda = 0
             return 'right'
         else:
