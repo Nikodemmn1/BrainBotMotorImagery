@@ -42,6 +42,7 @@ app.layout = html.Div([
     [Input('interval_component', 'n_intervals')]
 )
 def update_eeg_graph(value):
+    global data
     fig = go.Figure()
     sample = readRedis(r, 'eeg_data')
     single_channel = sample[0].flatten()
@@ -54,28 +55,17 @@ def update_eeg_graph(value):
     [Input('interval_component', 'n_intervals')]
 )
 def update_spectrogram(value):
-    fig = go.Figure()
+    global data
+    print(data.shape)
     power, times, frequencies, coif = cwt_spectrogram(data, sampling_frequency)
-    fig, (ax1, ax2) = plt.subplots(2, 1)
-
-    n_samples = data.shape[0]
-    total_duration = n_samples / sampling_frequency
-    sampling_times = np.linspace(0, total_duration, n_samples)
-    ax1.plot(sampling_times, data, color='b');
-
-    ax1.set_xlim(0, total_duration)
-    ax1.set_xlabel('time (s)')
-    # ax1.axis('off')
-    spectrogram_plot(power, times, frequencies, coif, cmap='jet', norm=LogNorm(), ax=ax2)
-
-    ax2.set_xlim(0, total_duration)
-    # ax2.set_ylim(0, 0.5*sampling_frequency)
-    ax2.set_ylim(2.0 / total_duration, 0.5 * sampling_frequency)
-    ax2.set_xlabel('time (s)')
-    ax2.set_ylabel('frequency (Hz)')
-    plotly_fig = mpl_to_plotly(fig)
-    plotly_fig.show()
-    return plotly_fig
+    trace = [go.Heatmap(x=times, y=frequencies, z=power, colorscale='Jet')]
+    layout = go.Layout(
+        title='Spectrogram',
+        yaxis=dict(title='Frequency'),  # x-axis label
+        xaxis=dict(title='Time'),  # y-axis label
+    )
+    fig = go.Figure(data=trace, layout=layout)
+    return fig
 # @app.callback(
 #     Output('', ''),
 #     [Input('left_control', 'n_clicks'),
