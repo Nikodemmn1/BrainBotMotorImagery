@@ -2,6 +2,7 @@ import redis
 from dash import Dash, dcc, html, Input, Output, callback
 import plotly.graph_objects as go
 import numpy as np
+import pickle
 data = []
 r = redis.Redis(host='localhost', port=6379, decode_responses=True)
 
@@ -30,18 +31,20 @@ app.layout = html.Div([
 def update_eeg_graph(value):
     fig = go.Figure()
     sample = r.xrevrange('eeg_data', '+', '-', 1)[0][1]['data']
-    data.append(sample)
+    # sample = pickle.loads(bytes(sample, "latin1"))
+    data.extend(list(sample))
+    # data.append(int(sample))
     fig.add_traces([go.Scatter(x=list(range(len(data))), y=data)])
     return fig
-@app.callback(
-    Output('', ''),
-    [Input('left_control', 'n_clicks'),
-     Input('right_control', 'n_clicks'),
-     Input('forward_control', 'n_clicks'),
-     Input('stop_control', 'n_clicks')]
-)
-def update_control():
-    pass
+# @app.callback(
+#     Output('', ''),
+#     [Input('left_control', 'n_clicks'),
+#      Input('right_control', 'n_clicks'),
+#      Input('forward_control', 'n_clicks'),
+#      Input('stop_control', 'n_clicks')]
+# )
+# def update_control():
+#     pass
 
 def main():
     app.run_server(debug=True)

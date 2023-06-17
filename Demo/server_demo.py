@@ -18,6 +18,8 @@ from pynput import keyboard
 from Models.OneDNet import OneDNet
 from Dataset.dataset import *
 
+import redis
+
 number_to_label_map = {
     '0': 'left',
     '1': 'right',
@@ -173,6 +175,8 @@ class DataPicker():
 
 
 def main():
+    r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+
     udp_server_sock = create_sockets()
     data_picker = DataPicker()
     model = load_model()
@@ -197,8 +201,10 @@ def main():
         label = number_to_label_map[number_label]
         if label is not None:
             decision_source = label
-
         x = data_picker(decision_source)
+        if x is not None:
+            x = x.cpu().detach().numpy()[0][0][0][0]
+            r.xadd('eeg_data', {'data': x})
         if x is not None:
             y = dc.get_classification(x, model)
             out_ind = np.argmax(y.numpy())
@@ -336,7 +342,7 @@ def CreateKeyboardListener():
 
     if listener == None:
         listener = keyboard.Listener(on_press=on_press, on_release=on_release,suppress=True)
-        listener.start()
+        #listener.start()
 
 if __name__ == '__main__':
     CreateKeyboardListener()
