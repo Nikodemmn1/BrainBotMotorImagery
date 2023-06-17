@@ -11,8 +11,8 @@ app = Dash(__name__)
 
 app.layout = html.Div([
     html.Div([
-        html.Div(html.Img(id='pg_logo1', src=app.get_asset_url('pg_logo1.jpg'))),
-        html.Div(html.Img(id='aitech_logo1', src=app.get_asset_url('aitech1.jpeg')))
+        html.Div(html.Img(id='pg_logo', src=app.get_asset_url('pg_logo.jpg'))),
+        html.Div(html.Img(id='aitech_logo', src=app.get_asset_url('aitech.jpeg')))
     ], id='header'),
     html.H1(id='title', children='BrainBot - EEG Brain-Computer Interface', style={'textAlign':'center'}),
     # html.Div([
