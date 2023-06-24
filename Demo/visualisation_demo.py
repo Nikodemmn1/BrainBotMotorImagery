@@ -26,6 +26,7 @@ app.layout = html.Div([
         html.Div(html.Img(id='eti_logo', src=app.get_asset_url('ETI_logo.jpg')))
     ], id='header', className='image-container'),
     html.H1(id='title', children='BrainBot - EEG Brain-Computer Interface', style={'textAlign':'center'}),
+    html.H1(id='label', children='STOP', style={'textAlign':'left', 'color': 'blue'}),
     # html.Div([
     #     html.Button('Left', id='left_control', n_clicks=0, className='control_button'),
     #     html.Button('Right', id='right_control', n_clicks=0, className='control_button'),
@@ -38,25 +39,20 @@ app.layout = html.Div([
                 interval=1000)], id='layout')
 
 @app.callback(
-    Output('eeg-signal', 'figure'),
+    [Output('eeg-signal', 'figure'),
+    Output('spectrogram', 'figure'),
+    Output('label', 'children')],
     [Input('interval_component', 'n_intervals')]
 )
 def update_eeg_graph(value):
     global data
-    fig = go.Figure()
+    signal_fig = go.Figure()
     sample = readRedis(r, 'eeg_data')
+    label = r.get('label').decode('utf-8')
+    print(label)
     single_channel = sample[0].flatten()
     data = single_channel
-    print(data.shape)
-    fig.add_traces([go.Scatter(x=list(range(len(data))), y=data)])
-    return fig
-@app.callback(
-    Output('spectrogram', 'figure'),
-    [Input('interval_component', 'n_intervals')]
-)
-def update_spectrogram(value):
-    global data
-    print(data.shape)
+    signal_fig.add_traces([go.Scatter(x=list(range(len(data))), y=data)])
     power, times, frequencies, coif = cwt_spectrogram(data, sampling_frequency)
     trace = [go.Heatmap(x=times, y=frequencies, z=power, colorscale='Jet')]
     layout = go.Layout(
@@ -64,8 +60,9 @@ def update_spectrogram(value):
         yaxis=dict(title='Frequency'),  # x-axis label
         xaxis=dict(title='Time'),  # y-axis label
     )
-    fig = go.Figure(data=trace, layout=layout)
-    return fig
+    spectrogram = go.Figure(data=trace, layout=layout)
+    return signal_fig, spectrogram, label
+
 # @app.callback(
 #     Output('', ''),
 #     [Input('left_control', 'n_clicks'),
